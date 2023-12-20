@@ -62,6 +62,14 @@ pub trait SimpleRTree {
         false
     }
 
+    /// Remove all weights
+    fn unweight(&mut self){
+        let edge_iter = self.iter_edges_pre(self.get_root());
+        for edge in edge_iter{
+            self.set_edge_weight(&edge.0, &edge.1, None);
+        }
+    }
+
     /// Get all node-child relationships
     fn get_children(&self)->&HashMap<NodeID, Vec<(NodeID, Option<EdgeWeight>)>>;
 
@@ -191,13 +199,17 @@ pub trait SimpleRTree {
         let node  = self.get_node(node_id);
         let mut tmp = String::new();
         if !self.get_node_children(node_id).is_empty(){
-            tmp.push('(');
+            if self.get_node_children(node_id).len()>1{
+                tmp.push('(');
+            }
             for (child_id, w) in self.get_node_children(node_id){
                 let child_str = format!("{},", self.subtree_to_newick(child_id, *w));
                 tmp.push_str(&child_str);
             }
             tmp.pop();
-            tmp.push(')');
+            if self.get_node_children(node_id).len()>1{
+                tmp.push(')');
+            }
         }
         tmp.push_str(&print_node(node, edge_weight));
         tmp
@@ -210,4 +222,28 @@ pub trait SimpleRTree {
 
     /// Increment all node_ids
     fn incerement_ids(&mut self, value: &usize);
+}
+
+pub trait RPhyTree:SimpleRTree {
+    
+    /// Checks if tree is binary
+    fn is_binary(&self)->bool{
+        for (_id, children) in self.get_children().iter(){
+            match children.len()<=2{
+                true => {},
+                false => {return false;}
+            }
+        };
+        return true;
+    }
+
+    /// SPR function
+    fn spr(&mut self, edge1: (&NodeID, &NodeID), edge2: (&NodeID, &NodeID), edge2_weights: (Option<EdgeWeight>, Option<EdgeWeight>)){
+        let graft_edge_weight = self.get_edge_weight(edge1.0, edge1.1).cloned();
+        let pruned_tree = self.prune(edge1.1);
+        self.graft(pruned_tree, edge2, edge2_weights, graft_edge_weight);
+    }
+
+    /// Induce tree
+    fn induce_tree(&self, taxa: &Vec<String>)->Box<dyn RPhyTree>;
 }
