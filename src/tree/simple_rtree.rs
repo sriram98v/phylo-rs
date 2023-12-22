@@ -248,7 +248,7 @@ pub trait RPhyTree:SimpleRTree {
     }
 
     /// Induce tree
-    fn induce_tree(&self, taxa: Vec<&String>)->Box<dyn RPhyTree>;
+    fn induce_tree(&self, taxa: Vec<String>)->Box<dyn RPhyTree>;
 
     /// Balance a binary tree of 4 taxa
     fn balance_subtree(&mut self){

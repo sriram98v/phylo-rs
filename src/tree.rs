@@ -459,7 +459,7 @@ impl SimpleRTree for RootedPhyloTree{
 }
 
 impl RPhyTree for RootedPhyloTree{
-    fn induce_tree(&self, taxa: Vec<&String>)->Box<dyn RPhyTree>{        
+    fn induce_tree(&self, taxa: Vec<String>)->Box<dyn RPhyTree>{        
         let mut nodes: HashMap<NodeID, NodeType> = HashMap::new();
         let leaf_ids = self.get_nodes()
             .iter()
