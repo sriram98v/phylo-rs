@@ -70,14 +70,6 @@ pub trait SimpleRTree {
         }
     }
 
-    /// Remove all weights
-    fn unweight(&mut self){
-        let edge_iter = self.iter_edges_pre(self.get_root());
-        for edge in edge_iter{
-            self.set_edge_weight(&edge.0, &edge.1, None);
-        }
-    }
-
     /// Get all node-child relationships
     fn get_children(&self)->&HashMap<NodeID, Vec<(NodeID, Option<EdgeWeight>)>>;
 
