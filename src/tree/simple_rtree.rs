@@ -70,6 +70,14 @@ pub trait SimpleRTree {
         }
     }
 
+    /// Remove all weights
+    fn unweight(&mut self){
+        let edge_iter = self.iter_edges_pre(self.get_root());
+        for edge in edge_iter{
+            self.set_edge_weight(&edge.0, &edge.1, None);
+        }
+    }
+
     /// Get all node-child relationships
     fn get_children(&self)->&HashMap<NodeID, Vec<(NodeID, Option<EdgeWeight>)>>;
 
@@ -205,11 +213,17 @@ pub trait SimpleRTree {
             if self.get_node_children(node_id).len()>1{
                 tmp.push('(');
             }
+            if self.get_node_children(node_id).len()>1{
+                tmp.push('(');
+            }
             for (child_id, w) in self.get_node_children(node_id){
                 let child_str = format!("{},", self.subtree_to_newick(child_id, *w));
                 tmp.push_str(&child_str);
             }
             tmp.pop();
+            if self.get_node_children(node_id).len()>1{
+                tmp.push(')');
+            }
             if self.get_node_children(node_id).len()>1{
                 tmp.push(')');
             }
