@@ -20,7 +20,7 @@ type DfsIndexRange = std::ops::Range<DfsTreeIndex>;
 /// Forcing the tree to be immutable also allows for more features such as more
 /// specific iterators that allow safe mutable access to the tree data during
 /// iteration.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct DfsTree<Data: Default, Meta: Default> {
     datas: Vec<Data>,
     siblings: Vec<DfsTreeSiblings>,
@@ -99,7 +99,7 @@ impl<Data: Default, Meta: Default> RootedTree for DfsTree<Data, Meta> {
             }
         }
 
-        DfsTreeSiblingsIter::<'_, false, Data, Meta>::new(self, DfsTreeSiblings::default())
+        DfsTreeSiblingsIter::new(self, DfsTreeSiblings::default())
     }
 
     #[allow(refining_impl_trait)]
@@ -178,47 +178,39 @@ impl<'a, const LEFT_FIRST: bool, Data: Default, Meta: Default>
     }
 }
 
-impl<const LEFT_FIRST: bool, Data: Default, Meta: Default> Iterator
-    for DfsTreeSiblingsIter<'_, LEFT_FIRST, Data, Meta>
-{
+impl<Data: Default, Meta: Default> Iterator for DfsTreeSiblingsIter<'_, true, Data, Meta> {
     type Item = DfsTreeIndex;
     fn next(&mut self) -> Option<Self::Item> {
-        if LEFT_FIRST {
-            self.siblings
-                .left
-                .map(|left| {
-                    self.siblings.left =
-                        self.tree.siblings.get(left.0.get() as usize).unwrap().left;
-                    left
-                })
-                .or_else(|| {
-                    let right = self.siblings.right?;
-                    self.siblings.right = self
-                        .tree
-                        .siblings
-                        .get(right.0.get() as usize)
-                        .unwrap()
-                        .right;
-                    Some(right)
-                })
-        } else {
-            self.siblings
-                .right
-                .map(|right| {
-                    self.siblings.right = self
-                        .tree
-                        .siblings
-                        .get(right.0.get() as usize)
-                        .unwrap()
-                        .right;
-                    right
-                })
-                .or_else(|| {
-                    let left = self.siblings.left?;
-                    self.siblings.left =
-                        self.tree.siblings.get(left.0.get() as usize).unwrap().left;
-                    Some(left)
-                })
-        }
+        self.siblings
+            .left
+            .inspect(|DfsTreeIndex(left)| {
+                self.siblings.left = self.tree.siblings.get(left.get() as usize).unwrap().left;
+            })
+            .or_else(|| {
+                let right = self.siblings.right?;
+                self.siblings.right = self
+                    .tree
+                    .siblings
+                    .get(right.0.get() as usize)
+                    .unwrap()
+                    .right;
+                Some(right)
+            })
+    }
+}
+
+impl<Data: Default, Meta: Default> Iterator for DfsTreeSiblingsIter<'_, false, Data, Meta> {
+    type Item = DfsTreeIndex;
+    fn next(&mut self) -> Option<Self::Item> {
+        self.siblings
+            .right
+            .inspect(|DfsTreeIndex(right)| {
+                self.siblings.right = self.tree.siblings.get(right.get() as usize).unwrap().right;
+            })
+            .or_else(|| {
+                let left = self.siblings.left?;
+                self.siblings.left = self.tree.siblings.get(left.0.get() as usize).unwrap().left;
+                Some(left)
+            })
     }
 }
