@@ -1,7 +1,9 @@
 mod dfs_tree;
 mod simple_tree;
 
-pub use dfs_tree::{DfsTree, DfsTreeIndex, DfsTreeSiblingsIter};
+pub use dfs_tree::{
+    DfsIterEntry, DfsIterEntryRelation, DfsTree, DfsTreeIndex, DfsTreeSiblingsIter,
+};
 pub use simple_tree::SimpleTree;
 use std::{collections::VecDeque, ops::ControlFlow};
 

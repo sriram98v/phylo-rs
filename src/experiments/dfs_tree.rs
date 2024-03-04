@@ -5,6 +5,12 @@ use super::RootedTree;
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct DfsTreeIndex(NonZeroU32);
 
+impl DfsTreeIndex {
+    pub fn from_usize(index: usize) -> Option<DfsTreeIndex> {
+        Some(DfsTreeIndex(NonZeroU32::new(index as u32)?))
+    }
+}
+
 const ROOT: DfsTreeIndex = DfsTreeIndex(unsafe { NonZeroU32::new_unchecked(1) });
 
 type DfsIndexRange = std::ops::Range<DfsTreeIndex>;
@@ -22,9 +28,77 @@ type DfsIndexRange = std::ops::Range<DfsTreeIndex>;
 /// iteration.
 #[derive(Debug, Clone)]
 pub struct DfsTree<Data: Default, Meta: Default> {
-    datas: Vec<Data>,
     siblings: Vec<DfsTreeSiblings>,
+    datas: Vec<Data>,
     metas: Vec<Meta>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum DfsIterEntryRelation {
+    SiblingOfLastEntry,
+    ChildOfLastEntry,
+    SiblingOfNthParent { depth_offset: usize },
+}
+
+#[derive(Debug, Clone)]
+pub struct DfsIterEntry<Data, Meta> {
+    pub relation: DfsIterEntryRelation,
+    pub data: Data,
+    pub meta: Meta,
+}
+
+impl<Data: Default, Meta: Default, T: Iterator<Item = DfsIterEntry<Data, Meta>>> From<T>
+    for DfsTree<Data, Meta>
+{
+    fn from(iter: T) -> Self {
+        let mut tree = Self::default();
+
+        let (lower, upper) = iter.size_hint();
+        let reserved = upper.unwrap_or(lower);
+        tree.datas.reserve(reserved);
+        tree.siblings.reserve(reserved);
+        tree.metas.reserve(reserved);
+
+        let mut last_index = tree.root().0.get() as usize;
+        let mut parent_stack = vec![];
+
+        for entry in iter {
+            let new_index = tree.datas.len();
+
+            tree.datas.push(entry.data);
+            tree.metas.push(entry.meta);
+
+            let last_siblings = tree.siblings.get_mut(last_index).unwrap();
+            let siblings = match entry.relation {
+                DfsIterEntryRelation::SiblingOfLastEntry => {
+                    last_siblings.right = Some(DfsTreeIndex::from_usize(new_index).unwrap());
+                    DfsTreeSiblings {
+                        left: Some(DfsTreeIndex::from_usize(last_index).unwrap()),
+                        right: None,
+                    }
+                }
+                DfsIterEntryRelation::ChildOfLastEntry => {
+                    parent_stack.push(last_index);
+                    DfsTreeSiblings::default()
+                }
+                DfsIterEntryRelation::SiblingOfNthParent { depth_offset } => {
+                    parent_stack.truncate(parent_stack.len() - depth_offset);
+                    let parent_index = parent_stack.pop().unwrap();
+                    let parent_siblings = tree.siblings.get_mut(parent_index).unwrap();
+                    parent_siblings.right = Some(DfsTreeIndex::from_usize(new_index).unwrap());
+                    DfsTreeSiblings {
+                        left: Some(DfsTreeIndex::from_usize(parent_index).unwrap()),
+                        right: None,
+                    }
+                }
+            };
+            tree.siblings.push(siblings);
+
+            last_index = new_index;
+        }
+
+        tree
+    }
 }
 
 impl<Data: Default, Meta: Default> Default for DfsTree<Data, Meta> {
