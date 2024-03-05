@@ -4,6 +4,7 @@ mod simple_tree;
 pub use dfs_tree::{
     DfsIterEntry, DfsIterEntryRelation, DfsTree, DfsTreeIndex, DfsTreeSiblingsIter,
 };
+use rayon::iter::ParallelIterator;
 pub use simple_tree::SimpleTree;
 use std::{collections::VecDeque, ops::ControlFlow};
 
@@ -122,6 +123,17 @@ pub trait RootedTreeMut: RootedTree {
 
     /// Removes a node from the tree.
     fn remove(&mut self, index: Self::Index) -> (Self::Data, Self::Meta);
+
+    /// Reserves capacity for at least `additional` more elements to be
+    /// inserted.
+    fn reserve(&mut self, additional: usize);
+}
+
+pub trait ParallelRootedTree: RootedTree {
+    /// Returns a parallel iterator over the nodes of the tree in any order.
+    fn par_iter(&self) -> impl ParallelIterator<Item = Self::Index>
+    where
+        Self::Index: Send;
 }
 
 #[cfg(test)]

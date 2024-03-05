@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 
-use super::{RootedTree, RootedTreeMut};
+use rayon::iter::{IntoParallelIterator, ParallelBridge, ParallelIterator};
+
+use super::{ParallelRootedTree, RootedTree, RootedTreeMut};
 
 type SimpleTreeIndex = usize;
 
@@ -120,5 +122,15 @@ impl<Data, Meta> RootedTreeMut for SimpleTree<Data, Meta> {
             children.swap_remove(children.iter().position(|&child| child == index).unwrap());
         }
         (node.data, node.meta)
+    }
+
+    fn reserve(&mut self, additional: usize) {
+        self.nodes.reserve(additional)
+    }
+}
+
+impl<Data: Sync, Meta: Sync> ParallelRootedTree for SimpleTree<Data, Meta> {
+    fn par_iter(&self) -> impl ParallelIterator<Item = Self::Index> {
+        self.nodes.keys().copied().par_bridge().into_par_iter()
     }
 }

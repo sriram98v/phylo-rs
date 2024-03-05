@@ -1,6 +1,9 @@
+use super::{ParallelRootedTree, RootedTree};
+use rayon::{
+    iter::plumbing::{Folder, UnindexedConsumer},
+    prelude::*,
+};
 use std::{iter::Skip, num::NonZeroU32, ops::ControlFlow};
-
-use super::RootedTree;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct DfsTreeIndex(NonZeroU32);
@@ -286,5 +289,13 @@ impl<Data: Default, Meta: Default> Iterator for DfsTreeSiblingsIter<'_, false, D
                 self.siblings.left = self.tree.siblings.get(left.0.get() as usize).unwrap().left;
                 Some(left)
             })
+    }
+}
+
+impl<Data: Default + Sync, Meta: Default + Sync> ParallelRootedTree for DfsTree<Data, Meta> {
+    fn par_iter(&self) -> impl ParallelIterator<Item = Self::Index> {
+        (1..self.len())
+            .into_par_iter()
+            .map(|index| DfsTreeIndex::from_usize(index).unwrap())
     }
 }
