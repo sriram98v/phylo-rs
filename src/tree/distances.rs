@@ -1,4 +1,4 @@
-use crate::node::simple_rnode::{RootedTreeNode, RootedZetaNode};
+use crate::node::simple_rnode::RootedZetaNode;
 use crate::tree::RootedTree;
 
 // pub trait InterNodeDistances
