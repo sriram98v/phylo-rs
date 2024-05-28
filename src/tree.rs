@@ -2,6 +2,7 @@ pub mod simple_rtree;
 pub mod ops;
 pub mod distances;
 pub mod io;
+pub mod stats;
 
 use std::ops::Index;
 
@@ -15,7 +16,7 @@ use rand::prelude::IteratorRandom;
 use crate::node;
 use crate::node::simple_rnode::*;
 use crate::node::Node;
-use crate::tree::{simple_rtree::*, io::*, ops::*};
+use crate::tree::{simple_rtree::*, io::*, ops::*, stats::*};
 use crate::iter::node_iter::*;
 use vers_vecs::BinaryRmq;
 
