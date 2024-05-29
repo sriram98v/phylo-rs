@@ -31,6 +31,9 @@ pub struct SimpleRootedTree{
     precomputed_fai: Option<Vec<Option<usize>>>,    
     precomputed_da: Option<Vec<usize>>,
     precomputed_rmq: Option<BinaryRmq>,
+    precomputed_min: Vec<Vec<f32>>,
+    precomputed_norm_min: Vec<Vec<f32>>,
+    precomputed_edges_count: Vec<Vec<u32>>,
 }
 
 impl SimpleRootedTree{
@@ -47,6 +50,9 @@ impl SimpleRootedTree{
             precomputed_fai: None,
             precomputed_da: None,
             precomputed_rmq: None,
+            precomputed_min: Vec::new(),
+            precomputed_norm_min: Vec::new(),
+            precomputed_edges_count: Vec::new(),
         }
     }
 
@@ -292,6 +298,87 @@ impl RootedMetaTree for SimpleRootedTree{
 impl RootedWeightedTree for SimpleRootedTree {
 
     type Weight = f32;
+
+}
+
+impl PhylogeneticDiversity for SimpleRootedTree{
+    fn precompute_PDs(&mut self)
+    {
+        let (delta_bar, delta_hat, edge_count) = self.compute_norm_min();
+        self.precomputed_min = delta_bar;
+        self.precomputed_norm_min = delta_hat;
+        self.precomputed_edges_count = edge_count;
+    }
+
+    fn compute_norm_min(&self)->(Vec<Vec<f32>>,Vec<Vec<f32>>,Vec<Vec<u32>>)
+    {
+        let num_leaves = self.get_leaves().len();
+        let mut delta_bar = vec![vec![f32::INFINITY;num_leaves+1];self.nodes.len()];
+        let mut delta_hat = vec![vec![f32::INFINITY;num_leaves+1];self.nodes.len()];
+        let mut edge_count = vec![vec![0_u32;num_leaves+1];self.nodes.len()];
+
+        for node in self.get_nodes(){
+            delta_bar[node.get_id()][0] = 0_f32;
+            delta_hat[node.get_id()][0] = 0_f32;
+            if node.is_leaf(){
+                delta_bar[node.get_id()][1] = 0_f32;
+                delta_hat[node.get_id()][1] = 0_f32;
+            }
+        }
+
+        for node in self.postord(self.get_root_id()){
+            if !node.is_leaf(){
+                for i in 1..std::cmp::min(num_leaves, self.get_cluster_size(node.get_id()))+1{
+                    let mut min_bar = f32::MAX;
+                    let mut min_hat = f32::MAX;
+                    let mut min_e = 0;
+                    let node_children = node.get_children().collect_vec();
+                    let x = node_children[0];
+                    let y = node_children[1];
+                    let start = std::cmp::max(0, (i as i32)-(self.get_cluster_size(y) as i32)) as usize;
+                    let end = std::cmp::min(self.get_cluster_size(x), i);
+                    for r in start..end+1{
+                        let l = i-r;
+                        let val_bar = delta_bar[y][r] + (self.get_node(y).unwrap().get_weight().unwrap()*(std::cmp::min(r,1) as f32)) 
+                            + delta_bar[x][l] + (self.get_node(x).unwrap().get_weight().unwrap()*(std::cmp::min(l,1) as f32));
+                        let mut e: u32 = 0;
+                        if l==0{
+                            e += edge_count[y][r] +1;
+                        }
+                        else if r==0{
+                            e += edge_count[x][l] +1;
+                        }
+                        else {
+                            e += edge_count[x][l] + edge_count[y][r] + 2;
+                        }
+                        let val_hat = val_bar/(e as f32);
+                        if val_bar<min_bar{
+                            min_bar = val_bar;
+                        }
+                        if val_hat<min_hat{
+                            min_hat = val_hat;
+                            min_e = e;
+                        }
+                    }
+                    delta_bar[node.get_id()][i] = min_bar;
+                    delta_hat[node.get_id()][i] = min_hat;
+                    edge_count[node.get_id()][i] = min_e;
+                }
+            }
+        }
+
+        return (delta_bar, delta_hat, edge_count);
+    }
+
+    fn get_minPD(&self, num_taxa: usize)-><<Self as RootedTree>::Node as RootedWeightedNode>::Weight
+    {
+        self.precomputed_min[self.get_root_id()][num_taxa]
+    }
+
+    fn get_norm_minPD(&self, num_taxa: usize)-><<Self as RootedTree>::Node as RootedWeightedNode>::Weight
+    {
+        self.precomputed_norm_min[self.get_root_id()][num_taxa]
+    }
 
 }
 
