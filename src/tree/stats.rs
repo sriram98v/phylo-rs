@@ -5,7 +5,7 @@ pub trait PhylogeneticDiversity: RootedTree
 where 
     <Self as RootedTree>::Node: RootedWeightedNode
 {
-    fn precompute_PDs(&mut self);
+    fn precompute_minPDs(&mut self);
 
     fn compute_norm_min(&self)->(Vec<Vec<f32>>,Vec<Vec<f32>>,Vec<Vec<u32>>);
 
