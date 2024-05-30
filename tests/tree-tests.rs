@@ -253,9 +253,26 @@ use phylo::tree::ops::CopheneticDistance;
 fn pd() {
     let input_str: String = String::from("((A:7,B:3):2,((C:5,D:1):3,E:4):6);");
     let mut tree = SimpleRootedTree::from_newick(input_str.as_bytes());
-    tree.precompute_PDs();
+    tree.precompute_minPDs();
     assert_eq!(tree.get_minPD(2), 12_f32);
     assert_eq!(tree.get_minPD(3), 19_f32);
     assert_eq!(tree.get_minPD(4), 26_f32);
 }
+
+#[test]
+fn benchmark_pd() {
+    let num_taxa = 1000;
+    let num_iter = 100;
+    println!("Creating tree with {} taxa", num_taxa);
+    let mut tree = SimpleRootedTree::yule(num_taxa).unwrap();
+    let node_ids = tree.get_node_ids().collect_vec();
+    println!("Setting Edge Weights");
+    for node_id in node_ids{
+        tree.get_node_mut(node_id).unwrap().set_weight(Some(node_id as f32));
+    }
+    println!("Precomputing minPDs");
+    (0..num_iter).for_each(|_| tree.precompute_minPDs());
+}
+
+
 

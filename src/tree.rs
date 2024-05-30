@@ -302,7 +302,7 @@ impl RootedWeightedTree for SimpleRootedTree {
 }
 
 impl PhylogeneticDiversity for SimpleRootedTree{
-    fn precompute_PDs(&mut self)
+    fn precompute_minPDs(&mut self)
     {
         let (delta_bar, delta_hat, edge_count) = self.compute_norm_min();
         self.precomputed_min = delta_bar;
