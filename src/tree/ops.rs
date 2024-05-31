@@ -246,8 +246,8 @@ where
     fn populate_op_vec(&self, tree: &Self, norm: usize, taxa_set: Vec<<Self as RootedMetaTree>::Meta>, op_vec: &mut Vec<<<Self as RootedTree>::Node as RootedZetaNode>::Zeta>)
     {
 
-        op_vec.push(self.distance_double_mix_type(tree, norm, taxa_set.clone().into_iter()));
-        op_vec.push(self.distance_single_mix_type(tree, norm, taxa_set.clone().into_iter()));
+        op_vec.push(self.distance_double_mix_type(tree, norm));
+        op_vec.push(self.distance_single_mix_type(tree, norm));
 
         if taxa_set.len()>2{
             let t = self.get_median_node_id();
@@ -347,10 +347,8 @@ where
     /// that are present in different subtrees in both trees(raised to the p^{th} power).
     /// 
     /// This includes the following assignments: AB|A'B', AB|B'A'
-    fn distance_double_mix_type(&self, tree: &Self, norm: usize, taxa_set: impl Iterator<Item=<Self as RootedMetaTree>::Meta>)-><<Self as RootedTree>::Node as RootedZetaNode>::Zeta
+    fn distance_double_mix_type(&self, tree: &Self, norm: usize)-><<Self as RootedTree>::Node as RootedZetaNode>::Zeta
     {
-        let taxa_vec = taxa_set.collect_vec();
-
         let t = self.get_median_node_id();
         let t_hat = tree.get_median_node_id();
         
@@ -386,10 +384,8 @@ where
     /// that are present in the same subtree in exactly one of the two trees(raised to the p^{th} power).
     /// 
     /// This includes the following assignments: AA|A'B', AA|B'A', BB|A'B', BB|B'A', BA|B'B', BA|A'A', AB|B'B', AB|A'A'.
-    fn distance_single_mix_type(&self, tree: &Self, norm: usize, taxa_set: impl Iterator<Item=<Self as RootedMetaTree>::Meta>)-><<Self as RootedTree>::Node as RootedZetaNode>::Zeta
-    {        
-        let taxa_vec = taxa_set.collect_vec();
-
+    fn distance_single_mix_type(&self, tree: &Self, norm: usize)-><<Self as RootedTree>::Node as RootedZetaNode>::Zeta
+    {
         let t = self.get_median_node_id();
         let t_hat = tree.get_median_node_id();
 
