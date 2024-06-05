@@ -329,16 +329,17 @@ impl PhylogeneticDiversity for SimpleRootedTree{
         for node in self.postord(self.get_root_id()){
             if !node.is_leaf(){
                 for i in 1..std::cmp::min(num_leaves, self.get_cluster_size(node.get_id()))+1{
-                    let mut min_bar = f32::MAX;
-                    let mut min_hat = f32::MAX;
+                    let mut min_bar = f32::INFINITY;
+                    let mut min_hat = f32::INFINITY;
                     let mut min_e = 0;
                     let node_children = node.get_children().collect_vec();
                     let x = node_children[0];
                     let y = node_children[1];
-                    let start = std::cmp::max(0, (i as i32)-(self.get_cluster_size(y) as i32)) as usize;
-                    let end = std::cmp::min(self.get_cluster_size(x), i);
-                    for r in start..end+1{
+                    for r in 0..i+1{
                         let l = i-r;
+                        if delta_bar[y][r]==f32::INFINITY || delta_bar[x][l]==f32::INFINITY{
+                            continue;
+                        }
                         let val_bar = delta_bar[y][r] + (self.get_node(y).unwrap().get_weight().unwrap()*(std::cmp::min(r,1) as f32)) 
                             + delta_bar[x][l] + (self.get_node(x).unwrap().get_weight().unwrap()*(std::cmp::min(l,1) as f32));
                         let mut e: u32 = 0;
@@ -372,12 +373,13 @@ impl PhylogeneticDiversity for SimpleRootedTree{
 
     fn get_minPD(&self, num_taxa: usize)-><<Self as RootedTree>::Node as RootedWeightedNode>::Weight
     {
-        self.precomputed_min[self.get_root_id()][num_taxa]
+        
+        self.precomputed_min[self.get_root_id()][std::cmp::min(num_taxa, self.num_taxa())]
     }
 
     fn get_norm_minPD(&self, num_taxa: usize)-><<Self as RootedTree>::Node as RootedWeightedNode>::Weight
     {
-        self.precomputed_norm_min[self.get_root_id()][num_taxa]
+        self.precomputed_norm_min[self.get_root_id()][std::cmp::min(num_taxa, self.num_taxa())]
     }
 
 }
