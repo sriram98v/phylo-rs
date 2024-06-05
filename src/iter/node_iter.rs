@@ -382,6 +382,7 @@ pub trait Clusters: DFS + BFS + Sized
         let leaf_ids = taxa_set.collect_vec();
         loop {
             median_node_id = self.get_node_children_ids(median_node_id)
+                .filter(|x| !self.is_leaf(x))
                 .max_by(|x, y| {
                     let x_cluster = self.get_cluster_ids(x.clone()).filter(|nids| leaf_ids.contains(nids)).collect_vec();
                     let y_cluster = self.get_cluster_ids(y.clone()).filter(|nids| leaf_ids.contains(nids)).collect_vec();
