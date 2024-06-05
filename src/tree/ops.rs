@@ -199,7 +199,7 @@ where
 {
     type Meta: Display + Debug + Eq + PartialEq + Clone + Ord + Hash + Send + Sync;
 
-    fn cophen_dist_naive(&self, tree: &Self, norm: usize)-><<Self as RootedTree>::Node as RootedZetaNode>::Zeta
+    fn cophen_dist_naive(&self, tree: &Self, norm: u32)-><<Self as RootedTree>::Node as RootedZetaNode>::Zeta
     {
         if !self.is_all_zeta_set() || !tree.is_all_zeta_set(){
             panic!("Zeta values not set");
@@ -212,7 +212,7 @@ where
     }
 
     /// Computed the Cophenetic distance between two trees using the \theta(n^2) naive algorithm. 
-    fn cophen_dist_naive_by_taxa(&self, tree: &Self, norm: usize, taxa_set: impl Iterator<Item=<Self as RootedMetaTree>::Meta>+Clone)-><<Self as RootedTree>::Node as RootedZetaNode>::Zeta
+    fn cophen_dist_naive_by_taxa(&self, tree: &Self, norm: u32, taxa_set: impl Iterator<Item=<Self as RootedMetaTree>::Meta>+Clone)-><<Self as RootedTree>::Node as RootedZetaNode>::Zeta
     {
         let dist = Self::compute_norm(taxa_set
             .combinations(2)
@@ -386,6 +386,9 @@ where
     /// This includes the following assignments: AA|A'B', AA|B'A', BB|A'B', BB|B'A', BA|B'B', BA|A'A', AB|B'B', AB|A'A'.
     fn distance_single_mix_type(&self, tree: &Self, norm: usize)-><<Self as RootedTree>::Node as RootedZetaNode>::Zeta
     {
+        if self.num_taxa()<=2{
+            return <<<Self as RootedTree>::Node as RootedZetaNode>::Zeta>::zero();
+        }
         let t = self.get_median_node_id();
         let t_hat = tree.get_median_node_id();
 
@@ -400,6 +403,7 @@ where
 
         let lower_tree_nodes = self.postord(t).map(|x| x.get_id()).collect_vec();
         let upper_tree_nodes = self.postord(self.get_root_id()).map(|x| x.get_id()).filter(|x| !lower_tree_nodes.contains(x));
+
         // AB|B'A'
         let a_int_b_hat: HashSet<<Self as RootedMetaTree>::Meta> = a.intersection(&b_hat).map(|x| x.clone()).collect();
         let b_int_a_hat: HashSet<<Self as RootedMetaTree>::Meta> = b.intersection(&a_hat).map(|x| x.clone()).collect();
@@ -482,7 +486,7 @@ where
         }
     }
 
-    fn compute_norm(vector: impl Iterator<Item=<<Self as RootedTree>::Node as RootedZetaNode>::Zeta>, norm: usize)-><<Self as RootedTree>::Node as RootedZetaNode>::Zeta
+    fn compute_norm(vector: impl Iterator<Item=<<Self as RootedTree>::Node as RootedZetaNode>::Zeta>, norm: u32)-><<Self as RootedTree>::Node as RootedZetaNode>::Zeta
     {
         if norm==1{
             return vector.sum();
