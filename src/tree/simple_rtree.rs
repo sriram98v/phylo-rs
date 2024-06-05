@@ -172,6 +172,11 @@ where
         true
     }
 
+    fn is_leaf(&self, node_id: &Self::NodeID)->bool
+    {
+        self.get_node(node_id.clone()).unwrap().is_leaf()
+    }
+
     fn num_nodes(&self)->usize
     {
         self.get_nodes().into_iter().len()
