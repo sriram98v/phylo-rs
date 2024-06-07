@@ -177,6 +177,11 @@ where
         self.get_nodes().into_iter().len()
     }
 
+    fn is_node_leaf(&self, node_id: Self::NodeID)->bool
+    {
+        self.get_node(node_id).expect(format!("No Node with id {:?}", node_id).as_str()).is_leaf()
+    }
+
     fn supress_node(&mut self, _node_id: Self::NodeID)
     {        
         todo!()
