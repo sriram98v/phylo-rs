@@ -182,6 +182,17 @@ where
         self.get_nodes().into_iter().len()
     }
 
+    fn get_siblings(&self, node_id: Self::NodeID)->impl Iterator<Item = Self::Node>
+    {
+        let parent_id = self.get_node_parent_id(node_id.clone()).expect("Node has no siblings!");
+        return self.get_node_children(parent_id).filter(move |x| x.get_id()!=node_id)
+    }
+
+    fn get_sibling_ids(&self, node_id: Self::NodeID)->impl Iterator<Item = Self::NodeID>
+    {
+        return self.get_siblings(node_id).map(|x| x.get_id())
+    }
+
     fn supress_node(&mut self, _node_id: Self::NodeID)
     {        
         todo!()
