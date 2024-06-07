@@ -296,7 +296,7 @@ impl RootedWeightedTree for SimpleRootedTree {
 
 impl PathFunction for SimpleRootedTree{
     fn get_zeta(&self, node_id: Self::NodeID)->Option<f32> {
-        self.get_node(node_id).unwrap().get_zeta()
+        self.get_node(node_id).expect(format!("Node with ID {} not found in tree", node_id).as_str()).get_zeta()
     }
     fn set_zeta(&mut self, zeta_func: fn(&Self, Self::NodeID) -> <<Self as RootedTree>::Node as RootedZetaNode>::Zeta) {
         let zetas = self.get_node_ids().map(|node_id| (node_id, Some(zeta_func(self, node_id)))).collect_vec();
