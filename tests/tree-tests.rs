@@ -267,6 +267,8 @@ fn pd() {
     assert_eq!(tree.get_minPD(4), 31_f32);
     assert_eq!(tree.get_minPD(5), 36_f32);
     assert_eq!(tree.get_minPD(6), 36_f32);
+
+    assert_eq!(tree.get_minPD_taxa_set(2).map(|x| tree.get_node_taxa(x).unwrap()).collect_vec(), vec!["0".to_string(), "1".to_string()]);
 }
 
 #[test]
