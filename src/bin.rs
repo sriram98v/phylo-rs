@@ -19,7 +19,7 @@ fn main(){
         .subcommand(Command::new("cophen-dist-repr")
             .about("Build suffix tree index from reference fasta file")
             .arg(arg!(-k --norm <NORM> "nth norm")
-                .value_parser(clap::value_parser!(usize))
+                .value_parser(clap::value_parser!(u32))
             )
             .arg(arg!(-n --num_trees <NUM_TREES> "number of trees")
                 .required(true)
@@ -43,7 +43,7 @@ fn main(){
                     EulerWalk::get_node_depth(tree, node_id) as f32
                 }
             
-                let norm = sub_m.get_one::<usize>("norm").expect("required");
+                let norm = sub_m.get_one::<u32>("norm").expect("required");
                 let num_trees = sub_m.get_one::<usize>("num_trees").expect("required");
                 let num_taxa = sub_m.get_one::<usize>("num_taxa").expect("required");
                 println!("Number of trees: {}", num_trees);
@@ -64,9 +64,6 @@ fn main(){
 
                 // dbg!(t1.get_nodes().map(|x| (x.get_id(), x.get_weight())).collect_vec());
 
-                println!("{}", t1.to_newick());
-                println!("{}", t2.to_newick());
-
                 // dbg!(&t1);
                 // dbg!(&t2);
 
@@ -75,7 +72,6 @@ fn main(){
                         let taxa_set = t1.get_taxa_space();
                         let now = Instant::now();
                         dbg!(t1.cophen_dist_naive_by_taxa(&t2, *norm, taxa_set.clone()));
-                        dbg!(t1.cophen_dist(&t2, *norm));
                         return now.elapsed();
                     }).sum::<Duration>()/(*num_trees as u32);
                 
