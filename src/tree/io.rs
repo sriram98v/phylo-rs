@@ -1,11 +1,10 @@
 #![allow(clippy::needless_lifetimes)]
 
-use anyhow::Result;
 use itertools::Itertools;
 use std::ffi::OsStr;
 use std::fmt::Display;
-use std::fs;
 use std::path::Path;
+use std::{fs, io};
 
 use crate::prelude::*;
 
@@ -20,7 +19,7 @@ pub enum NexusBlock {
 /// A trait descibing Newick encoding of a tree.
 pub trait Newick: RootedTree {
     /// Creates a new tree using a Newick string
-    fn from_newick(newick_str: &[u8]) -> Result<Self>;
+    fn from_newick(newick_str: &[u8]) -> std::io::Result<Self>;
 
     /// Encodes a subtree starting from a node as a Newick string
     fn subtree_to_newick(&self, node_id: TreeNodeID<Self>) -> impl Display;
@@ -31,14 +30,14 @@ pub trait Newick: RootedTree {
     }
 
     /// Writes Newick String to file
-    fn to_file(&self, p: &Path) -> Result<()> {
+    fn to_file(&self, p: &Path) -> io::Result<()> {
         assert!(p.extension() == Some(OsStr::new("nwk")));
-        Ok(fs::write(p, self.to_newick().to_string().as_bytes())?)
+        fs::write(p, self.to_newick().to_string().as_bytes())
     }
 
     /// Reads Newick String to file
     /// Note: this attempts to read only the first tree in the file
-    fn from_file(p: &Path) -> Result<Self> {
+    fn from_file(p: &Path) -> io::Result<Self> {
         assert!(p.extension() == Some(OsStr::new("nwk")));
         let nwk_string = fs::read_to_string(p)?
             .as_bytes()
@@ -55,13 +54,13 @@ pub trait Newick: RootedTree {
 pub trait Nexus: Newick {
     /// Creates tree from Nexus string
     /// Note: this attempts to read only the first tree in the file
-    fn from_nexus(p: String) -> Result<Self> {
+    fn from_nexus(p: String) -> std::io::Result<Self> {
         let file_lines = p.lines().collect_vec();
         if file_lines[0] != "#NEXUS" {
-            Err(
-                NexusErr("Format error! Nexus files should start with '#Nexus'!".to_string())
-                    .into(),
-            )
+            Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                NexusError::InvalidHeader,
+            ))
         } else {
             let mut tree_block = "".to_string();
             let mut curr_block = NexusBlock::NONE;
@@ -96,14 +95,14 @@ pub trait Nexus: Newick {
     }
 
     /// Creates tree from Nexus file
-    fn from_nexus_file(p: &Path) -> Result<Self> {
+    fn from_nexus_file(p: &Path) -> std::io::Result<Self> {
         assert!(p.extension() == Some(OsStr::new("nex")));
         let file_data = fs::read_to_string(p)?;
         Self::from_nexus(file_data)
     }
 
     /// Writes Newick String to file
-    fn to_nexus(&self) -> Result<String> {
+    fn to_nexus(&self) -> io::Result<String> {
         Ok(format!(
             "#NEXUS\n\nBEGIN TREES;\n\tTree tree={}\nEND;",
             self.to_newick()
@@ -111,8 +110,8 @@ pub trait Nexus: Newick {
     }
 
     /// Writes Newick String to file
-    fn to_nexus_file(&self, p: &Path) -> Result<()> {
+    fn to_nexus_file(&self, p: &Path) -> io::Result<()> {
         assert!(p.extension() == Some(OsStr::new("nwk")));
-        Ok(fs::write(p, self.to_nexus()?.as_bytes())?)
+        fs::write(p, self.to_nexus()?.as_bytes())
     }
 }

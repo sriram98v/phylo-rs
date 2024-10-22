@@ -1,9 +1,6 @@
 use crate::node::simple_rnode::*;
-use anyhow::Result;
 use itertools::Itertools;
 use std::fmt::Debug;
-
-use super::TreeQueryErr;
 
 /// A type alias for Tree Node ID
 pub type TreeNodeID<T> = <<T as RootedTree>::Node as RootedTreeNode>::NodeID;
@@ -22,10 +19,10 @@ where
     type Node;
 
     /// Returns reference to node by ID
-    fn get_node<'a>(&'a self, node_id: TreeNodeID<Self>) -> Result<&'a Self::Node>;
+    fn get_node<'a>(&'a self, node_id: TreeNodeID<Self>) -> Option<&'a Self::Node>;
 
     /// Returns a mutable reference to a node
-    fn get_node_mut<'a>(&'a mut self, node_id: TreeNodeID<Self>) -> Result<&'a mut Self::Node>;
+    fn get_node_mut<'a>(&'a mut self, node_id: TreeNodeID<Self>) -> Option<&'a mut Self::Node>;
 
     /// Reurns an iterator over all NodeID's
     fn get_node_ids(&self) -> impl Iterator<Item = TreeNodeID<Self>>;
@@ -70,7 +67,7 @@ where
 
     /// Returns true if node with node_id exists in tree
     fn contains_node(&self, node_id: TreeNodeID<Self>) -> bool {
-        self.get_node(node_id).is_ok()
+        self.get_node(node_id).is_some()
     }
 
     /// Removes internal nodes of degree 2 and any floating nodes
@@ -223,22 +220,16 @@ where
     }
 
     /// Returns immutable reference to parent for a node
-    fn get_node_parent<'a>(&'a self, node_id: TreeNodeID<Self>) -> Result<&'a Self::Node> {
-        self.get_node(
-            self.get_node_parent_id(node_id)
-                .ok_or(TreeQueryErr("Node does not have a parent".to_string()))?,
-        )
+    fn get_node_parent<'a>(&'a self, node_id: TreeNodeID<Self>) -> Option<&'a Self::Node> {
+        self.get_node(self.get_node_parent_id(node_id)?)
     }
 
     /// Returns immutable reference to parent for a node
     fn get_node_parent_mut<'a>(
         &'a mut self,
         node_id: TreeNodeID<Self>,
-    ) -> Result<&'a mut Self::Node> {
-        self.get_node_mut(
-            self.get_node_parent_id(node_id)
-                .ok_or(TreeQueryErr("Node does not have a parent".to_string()))?,
-        )
+    ) -> Option<&'a mut Self::Node> {
+        self.get_node_mut(self.get_node_parent_id(node_id)?)
     }
 
     /// Returns an iterator of immutable references to children of a node
@@ -327,13 +318,8 @@ where
     }
 
     /// Connects a nodes children to it's parent, then deletes all edges to the node, without deleting the node from the tree
-    fn supress_node<'a>(&'a mut self, node_id: TreeNodeID<Self>) -> Result<()> {
-        let node_parent_id = self
-            .get_node_parent_id(node_id)
-            .ok_or(TreeQueryErr(format!(
-                "Node {} does not have a parent!",
-                node_id
-            )))?;
+    fn supress_node<'a>(&'a mut self, node_id: TreeNodeID<Self>) -> Option<()> {
+        let node_parent_id = self.get_node_parent_id(node_id)?;
         let node_children_ids = self.get_node_children_ids(node_id).collect_vec();
         for child_id in node_children_ids.as_slice() {
             let child = self.get_node_mut(*child_id)?;
@@ -344,11 +330,11 @@ where
             node_parent.add_child(child_id);
         }
         self.remove_node(node_id);
-        Ok(())
+        Some(())
     }
 
     /// Supresses all nodes of degree 2
-    fn supress_unifurcations<'a>(&'a mut self) -> Result<()>;
+    fn supress_unifurcations<'a>(&'a mut self);
 }
 
 /// A trait describing the behaviour of a rooted tree where some of the nodes have a meta annotation. The terms meta and taxa are used interchangably here.
@@ -358,11 +344,11 @@ where
     Self::Node: RootedMetaNode,
 {
     ///  Returns an immutable reference to a node with a give meta annotation
-    fn get_taxa_node<'a>(&'a self, taxa: &TreeNodeMeta<Self>) -> Result<&'a Self::Node>;
+    fn get_taxa_node<'a>(&'a self, taxa: &TreeNodeMeta<Self>) -> Option<&'a Self::Node>;
 
     /// Returns the node id of a node with a meta annotation
-    fn get_taxa_node_id(&self, taxa: &TreeNodeMeta<Self>) -> Result<TreeNodeID<Self>> {
-        Ok(self.get_taxa_node(taxa)?.get_id())
+    fn get_taxa_node_id(&self, taxa: &TreeNodeMeta<Self>) -> Option<TreeNodeID<Self>> {
+        Some(self.get_taxa_node(taxa)?.get_id())
     }
 
     /// Returns totla number of nodes with a meta annotation
