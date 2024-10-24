@@ -1,4 +1,3 @@
-use anyhow::Result;
 use fxhash::FxHashSet as HashSet;
 use itertools::Itertools;
 use num::{Float, NumCast, Signed};
@@ -18,20 +17,18 @@ where
     fn set_zeta(
         &mut self,
         zeta_func: fn(&Self, TreeNodeID<Self>) -> TreeNodeZeta<Self>,
-    ) -> Result<()> {
+    ) -> Option<()> {
         let node_ids = self.get_node_ids().collect_vec();
         for node_id in node_ids {
             let zeta = zeta_func(self, node_id);
             self.set_node_zeta(node_id, Some(zeta))?;
         }
-        Ok(())
+        Some(())
     }
 
     /// Returns zeta value of a node in a tree. None is no zeta value is set
-    fn get_zeta(&self, node_id: TreeNodeID<Self>) -> Result<TreeNodeZeta<Self>> {
-        self.get_node(node_id)?
-            .get_zeta()
-            .ok_or(NodeQueryErr("Node zeta node set".to_string()).into())
+    fn get_zeta(&self, node_id: TreeNodeID<Self>) -> Option<TreeNodeZeta<Self>> {
+        self.get_node(node_id)?.get_zeta()
     }
 
     /// Returns true if node zeta value is not None
@@ -49,9 +46,9 @@ where
         &mut self,
         node_id: TreeNodeID<Self>,
         zeta: Option<TreeNodeZeta<Self>>,
-    ) -> Result<()> {
+    ) -> Option<()> {
         self.get_node_mut(node_id)?.set_zeta(zeta);
-        Ok(())
+        Some(())
     }
 }
 
@@ -78,7 +75,7 @@ where
     <Self as RootedTree>::Node: RootedMetaNode,
 {
     /// Returns Robinson Foulds distance between tree and self.
-    fn rfs(&self, tree: &Self) -> Result<usize> {
+    fn rfs(&self, tree: &Self) -> usize {
         let self_bps = self
             .get_node_ids()
             .filter(|node_id| node_id == &self.get_root_id())
@@ -128,7 +125,7 @@ where
             }
         }
 
-        Ok(dist)
+        dist
     }
 }
 
@@ -139,7 +136,7 @@ where
     <Self as RootedTree>::Node: RootedMetaNode,
 {
     /// Returns Cluster Affinity distance between tree and self.
-    fn ca(&self, tree: &Self) -> Result<usize> {
+    fn ca(&self, tree: &Self) -> usize {
         let self_clusters = self
             .get_node_ids()
             .map(|node_id| {
@@ -157,8 +154,8 @@ where
             })
             .collect::<HashSet<_>>();
 
-        Ok(self_clusters.difference(&tree_clusters).collect_vec().len()
-            + tree_clusters.difference(&self_clusters).collect_vec().len())
+        self_clusters.difference(&tree_clusters).collect_vec().len()
+            + tree_clusters.difference(&self_clusters).collect_vec().len()
     }
 }
 
