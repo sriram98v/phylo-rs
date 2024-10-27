@@ -13,18 +13,18 @@ use crate::{
 /// A trait describing subtree-prune-regraft operations
 pub trait SPR: RootedTree + DFS + Sized {
     /// Attaches input tree to self by spliting an edge
-    fn graft(&mut self, tree: Self, edge: (TreeNodeID<Self>, TreeNodeID<Self>));
+    fn graft(&mut self, tree: Self, edge: (TreeNodeID<Self>, TreeNodeID<Self>)) -> Result<(), ()>;
 
     /// Returns subtree starting at given node, while corresponding nodes from self.
-    fn prune(&mut self, node_id: TreeNodeID<Self>) -> Self;
+    fn prune(&mut self, node_id: TreeNodeID<Self>) -> Result<Self, ()>;
 
     /// SPR function
     fn spr(
         &mut self,
         edge1: (TreeNodeID<Self>, TreeNodeID<Self>),
         edge2: (TreeNodeID<Self>, TreeNodeID<Self>),
-    ) {
-        let pruned_tree = SPR::prune(self, edge1.1);
+    ) -> Result<(), ()> {
+        let pruned_tree = SPR::prune(self, edge1.1)?;
         SPR::graft(self, pruned_tree, edge2)
     }
 }
@@ -35,7 +35,7 @@ where
     Self: RootedTree + Sized,
 {
     /// Performs an NNI operation
-    fn nni(&mut self, parent_id: TreeNodeID<Self>);
+    fn nni(&mut self, parent_id: TreeNodeID<Self>) -> Result<(), ()>;
 }
 
 /// A trait describing rerooting a tree
@@ -44,9 +44,9 @@ where
     Self: RootedTree + Sized,
 {
     /// Reroots tree at node. **Note: this changes the degree of a node**
-    fn reroot_at_node(&mut self, node_id: TreeNodeID<Self>);
+    fn reroot_at_node(&mut self, node_id: TreeNodeID<Self>) -> Result<(), ()>;
     /// Reroots tree at a split node.
-    fn reroot_at_edge(&mut self, edge: (TreeNodeID<Self>, TreeNodeID<Self>));
+    fn reroot_at_edge(&mut self, edge: (TreeNodeID<Self>, TreeNodeID<Self>)) -> Result<(), ()>;
 }
 
 /// A trait describing blancing a binary tree
@@ -55,7 +55,7 @@ where
     TreeNodeID<Self>: Display + Debug + Hash + Clone + Ord,
 {
     /// Balances a binary tree
-    fn balance_subtree(&mut self);
+    fn balance_subtree(&mut self) -> Result<(), ()>;
 }
 
 /// A trait describing subtree queries of a tree
@@ -70,7 +70,7 @@ where
             Item = TreeNodeID<Self>,
             IntoIter = impl ExactSizeIterator<Item = TreeNodeID<Self>>,
         >,
-    ) -> Self {
+    ) -> Result<Self, ()> {
         let mut subtree = self.clone();
         subtree.clear();
         for node_id in node_id_list.into_iter() {
@@ -78,15 +78,15 @@ where
             subtree.set_nodes(ancestors);
         }
         subtree.clean();
-        subtree.clone()
+        Ok(subtree.clone())
     }
 
     /// Returns subtree starting at provided node.
-    fn subtree(&self, node_id: TreeNodeID<Self>) -> Self {
+    fn subtree(&self, node_id: TreeNodeID<Self>) -> Result<Self, ()> {
         let mut subtree = self.clone();
         let dfs = self.dfs(node_id).cloned().collect_vec();
         subtree.set_nodes(dfs);
-        subtree
+        Ok(subtree)
     }
 }
 
@@ -294,12 +294,12 @@ pub trait ContractTree: EulerWalk + DFS {
     }
 
     /// Returns a contracted tree from slice containing NodeID's
-    fn contract_tree(&self, leaf_ids: &[TreeNodeID<Self>]) -> Self;
+    fn contract_tree(&self, leaf_ids: &[TreeNodeID<Self>]) -> Result<Self, ()>;
 
     /// Returns a contracted tree from an iterator containing NodeID's
     fn contract_tree_from_iter(
         &self,
         leaf_ids: &[TreeNodeID<Self>],
         node_iter: impl Iterator<Item = TreeNodeID<Self>>,
-    ) -> Self;
+    ) -> Result<Self, ()>;
 }

@@ -96,14 +96,14 @@ fn tree_spr() {
     let mut tree = SimpleRootedTree::from_newick(input_str.as_bytes()).unwrap();
     dbg!(format!("{}", &tree.to_newick()));
     dbg!(tree.get_nodes().collect_vec());
-    let p_tree = tree.prune(1);
+    let p_tree = tree.prune(1).unwrap();
     dbg!(format!("{}", &tree.to_newick()));
     dbg!(format!("{}", &p_tree.to_newick()));
-    tree.graft(p_tree, (0, 4));
+    tree.graft(p_tree, (0, 4)).unwrap();
     tree.clean();
     dbg!(format!("{}", &tree.to_newick()));
     dbg!(&tree.get_node_parent(4));
-    tree.spr((1, 2), (5, 4));
+    tree.spr((1, 2), (5, 4)).unwrap();
     dbg!(format!("{}", &tree.to_newick()));
 }
 #[test]
@@ -120,15 +120,15 @@ fn tree_cluster() {
 fn balance_tree() {
     let input_str: String = String::from("(((A,B),C),D);");
     let mut tree = SimpleRootedTree::from_newick(input_str.as_bytes()).unwrap();
-    tree.balance_subtree();
+    tree.balance_subtree().unwrap();
     dbg!(format!("{}", &tree.to_newick()));
     let input_str: String = String::from("(D,(C,(A,B)));");
     let mut tree = SimpleRootedTree::from_newick(input_str.as_bytes()).unwrap();
-    tree.balance_subtree();
+    tree.balance_subtree().unwrap();
     dbg!(format!("{}", &tree.to_newick()));
     let input_str: String = String::from("(D,(A,(C,B)));");
     let mut tree = SimpleRootedTree::from_newick(input_str.as_bytes()).unwrap();
-    tree.balance_subtree();
+    tree.balance_subtree().unwrap();
     dbg!(format!("{}", &tree.to_newick()));
     dbg!(tree.get_nodes().collect_vec());
     dbg!(tree.get_root_id());
@@ -138,7 +138,7 @@ fn induce_tree() {
     let input_str: String = String::from("(((A,B),C),D);");
     let tree = SimpleRootedTree::from_newick(input_str.as_bytes()).unwrap();
     dbg!(format!("{}", &tree.to_newick()));
-    let mut x = tree.induce_tree(vec![3, 5, 6]);
+    let mut x = tree.induce_tree(vec![3, 5, 6]).unwrap();
     x.clean();
     dbg!(x.get_root().get_children().collect_vec());
     dbg!(x.get_nodes().collect_vec());
@@ -184,7 +184,7 @@ fn contract_tree() {
     .into_iter()
     .map(|x| tree.get_taxa_node_id(&x).unwrap())
     .collect_vec();
-    let mut new_tree = tree.contract_tree(taxa_subset.as_slice());
+    let mut new_tree = tree.contract_tree(taxa_subset.as_slice()).unwrap();
     println!("{}", new_tree.to_newick());
     new_tree.precompute_constant_time_lca();
 }

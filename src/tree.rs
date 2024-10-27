@@ -436,21 +436,21 @@ impl ContractTree for SimpleRootedTree {
         node_map.into_iter().flatten()
     }
 
-    fn contract_tree(&self, leaf_ids: &[TreeNodeID<Self>]) -> Self {
+    fn contract_tree(&self, leaf_ids: &[TreeNodeID<Self>]) -> Result<Self, ()> {
         let new_tree_root_id = self.get_lca_id(leaf_ids);
         let new_nodes = self.contracted_tree_nodes(leaf_ids).collect_vec();
         let mut new_tree = self.clone();
         new_tree.set_root(new_tree_root_id);
         new_tree.clear();
         new_tree.set_nodes(new_nodes);
-        new_tree
+        Ok(new_tree)
     }
 
     fn contract_tree_from_iter(
         &self,
         leaf_ids: &[TreeNodeID<Self>],
         node_iter: impl Iterator<Item = TreeNodeID<Self>>,
-    ) -> Self {
+    ) -> Result<Self, ()> {
         let new_tree_root_id = self.get_lca_id(leaf_ids);
         let new_nodes = self
             .contracted_tree_nodes_from_iter(new_tree_root_id, leaf_ids, node_iter)
@@ -459,7 +459,7 @@ impl ContractTree for SimpleRootedTree {
         new_tree.set_root(new_tree_root_id);
         new_tree.clear();
         new_tree.set_nodes(new_nodes);
-        new_tree
+        Ok(new_tree)
     }
 }
 
@@ -707,7 +707,7 @@ impl Newick for SimpleRootedTree {
 impl Nexus for SimpleRootedTree {}
 
 impl SPR for SimpleRootedTree {
-    fn graft(&mut self, tree: Self, edge: (TreeNodeID<Self>, TreeNodeID<Self>)) {
+    fn graft(&mut self, tree: Self, edge: (TreeNodeID<Self>, TreeNodeID<Self>)) -> Result<(), ()> {
         let new_node = self.next_node();
         let new_node_id = dbg!(new_node.get_id());
         for node in tree.dfs(tree.get_root_id()) {
@@ -715,8 +715,9 @@ impl SPR for SimpleRootedTree {
         }
         self.split_edge(edge, new_node);
         self.set_child(dbg!(new_node_id), dbg!(tree.get_root_id()));
+        Ok(())
     }
-    fn prune(&mut self, node_id: TreeNodeID<Self>) -> Self {
+    fn prune(&mut self, node_id: TreeNodeID<Self>) -> Result<Self, ()> {
         let mut pruned_tree = SimpleRootedTree::new(node_id);
         let p_id = self.get_node_parent_id(node_id).unwrap();
         self.get_node_mut(p_id).unwrap().remove_child(&node_id);
@@ -729,12 +730,12 @@ impl SPR for SimpleRootedTree {
             // self.nodes.remove(node.get_id());
             pruned_tree.set_node(node.clone());
         }
-        pruned_tree
+        Ok(pruned_tree)
     }
 }
 
 impl Balance for SimpleRootedTree {
-    fn balance_subtree(&mut self) {
+    fn balance_subtree(&mut self) -> Result<(), ()> {
         assert!(
             self.get_cluster(self.get_root_id()).collect_vec().len() == 4,
             "Quartets have 4 leaves!"
@@ -774,6 +775,7 @@ impl Balance for SimpleRootedTree {
             _ => {}
         }
         self.clean();
+        Ok(())
     }
 }
 
