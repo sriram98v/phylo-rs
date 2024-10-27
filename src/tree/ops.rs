@@ -106,11 +106,8 @@ pub trait ContractTree: EulerWalk + DFS {
             .map(|x| self.get_node(x).cloned().unwrap())
             .for_each(|mut node| {
                 match node.is_leaf() {
-                    true => match leaf_ids.contains(&node.get_id()) {
-                        true => {
-                            node_map.insert(node.get_id(), node);
-                        }
-                        false => {}
+                    true => if leaf_ids.contains(&node.get_id()) {
+                        node_map.insert(node.get_id(), node);
                     },
                     false => {
                         let node_children_ids = node.get_children().collect_vec();
@@ -129,23 +126,20 @@ pub trait ContractTree: EulerWalk + DFS {
                                 // if child of node is already in remove list, attach node children to node first
                                 let child_node_id = node_children_ids[0];
 
-                                match remove_list.contains(&child_node_id) {
-                                    true => {
-                                        node.remove_child(&child_node_id);
-                                        let grandchildren_ids = node_map
-                                            .get(&child_node_id)
+                                if remove_list.contains(&child_node_id) {
+                                    node.remove_child(&child_node_id);
+                                    let grandchildren_ids = node_map
+                                        .get(&child_node_id)
+                                        .unwrap()
+                                        .get_children()
+                                        .collect_vec();
+                                    for grandchild_id in grandchildren_ids {
+                                        node_map
+                                            .get_mut(&grandchild_id)
                                             .unwrap()
-                                            .get_children()
-                                            .collect_vec();
-                                        for grandchild_id in grandchildren_ids {
-                                            node_map
-                                                .get_mut(&grandchild_id)
-                                                .unwrap()
-                                                .set_parent(Some(node.get_id()));
-                                            node.add_child(grandchild_id);
-                                        }
+                                            .set_parent(Some(node.get_id()));
+                                        node.add_child(grandchild_id);
                                     }
-                                    false => {}
                                 }
                                 remove_list.push(node.get_id());
                                 node_map.insert(node.get_id(), node);
@@ -154,28 +148,25 @@ pub trait ContractTree: EulerWalk + DFS {
                                 // node has multiple children
                                 // for each child, suppress child if child is in remove list
                                 node_children_ids.into_iter().for_each(|chid| {
-                                    match remove_list.contains(&chid) {
-                                        true => {
-                                            // suppress chid
-                                            // remove chid from node children
-                                            // children of chid are node grandchildren
-                                            // add grandchildren to node children
-                                            // set grandchildren parent to node
-                                            node.remove_child(&chid);
-                                            let node_grandchildren = node_map
-                                                .get(&chid)
+                                    if remove_list.contains(&chid) {
+                                        // suppress chid
+                                        // remove chid from node children
+                                        // children of chid are node grandchildren
+                                        // add grandchildren to node children
+                                        // set grandchildren parent to node
+                                        node.remove_child(&chid);
+                                        let node_grandchildren = node_map
+                                            .get(&chid)
+                                            .unwrap()
+                                            .get_children()
+                                            .collect_vec();
+                                        for grandchild in node_grandchildren {
+                                            node.add_child(grandchild);
+                                            node_map
+                                                .get_mut(&grandchild)
                                                 .unwrap()
-                                                .get_children()
-                                                .collect_vec();
-                                            for grandchild in node_grandchildren {
-                                                node.add_child(grandchild);
-                                                node_map
-                                                    .get_mut(&grandchild)
-                                                    .unwrap()
-                                                    .set_parent(Some(node.get_id()))
-                                            }
+                                                .set_parent(Some(node.get_id()))
                                         }
-                                        false => {}
                                     }
                                 });
                                 if node.get_id() == new_tree_root_id {
@@ -206,11 +197,8 @@ pub trait ContractTree: EulerWalk + DFS {
         node_postord_iter.for_each(|orig_node| {
             let mut node = orig_node.clone();
             match node.is_leaf() {
-                true => match leaf_ids.contains(&node.get_id()) {
-                    true => {
-                        node_map.insert(node.get_id(), node);
-                    }
-                    false => {}
+                true => if leaf_ids.contains(&node.get_id()) {
+                    node_map.insert(node.get_id(), node);
                 },
                 false => {
                     let node_children_ids = node.get_children().collect_vec();
@@ -229,23 +217,20 @@ pub trait ContractTree: EulerWalk + DFS {
                             // if child of node is already in remove list, attach node children to node first
                             let child_node_id = node_children_ids[0];
 
-                            match remove_list.contains(&child_node_id) {
-                                true => {
-                                    node.remove_child(&child_node_id);
-                                    let grandchildren_ids = node_map
-                                        .get(&child_node_id)
+                            if remove_list.contains(&child_node_id) {
+                                node.remove_child(&child_node_id);
+                                let grandchildren_ids = node_map
+                                    .get(&child_node_id)
+                                    .unwrap()
+                                    .get_children()
+                                    .collect_vec();
+                                for grandchild_id in grandchildren_ids {
+                                    node_map
+                                        .get_mut(&grandchild_id)
                                         .unwrap()
-                                        .get_children()
-                                        .collect_vec();
-                                    for grandchild_id in grandchildren_ids {
-                                        node_map
-                                            .get_mut(&grandchild_id)
-                                            .unwrap()
-                                            .set_parent(Some(node.get_id()));
-                                        node.add_child(grandchild_id);
-                                    }
+                                        .set_parent(Some(node.get_id()));
+                                    node.add_child(grandchild_id);
                                 }
-                                false => {}
                             }
                             remove_list.push(node.get_id());
                             node_map.insert(node.get_id(), node);
@@ -254,28 +239,25 @@ pub trait ContractTree: EulerWalk + DFS {
                             // node has multiple children
                             // for each child, suppress child if child is in remove list
                             node_children_ids.into_iter().for_each(|chid| {
-                                match remove_list.contains(&chid) {
-                                    true => {
-                                        // suppress chid
-                                        // remove chid from node children
-                                        // children of chid are node grandchildren
-                                        // add grandchildren to node children
-                                        // set grandchildren parent to node
-                                        node.remove_child(&chid);
-                                        let node_grandchildren = node_map
-                                            .get(&chid)
+                                if remove_list.contains(&chid) {
+                                    // suppress chid
+                                    // remove chid from node children
+                                    // children of chid are node grandchildren
+                                    // add grandchildren to node children
+                                    // set grandchildren parent to node
+                                    node.remove_child(&chid);
+                                    let node_grandchildren = node_map
+                                        .get(&chid)
+                                        .unwrap()
+                                        .get_children()
+                                        .collect_vec();
+                                    for grandchild in node_grandchildren {
+                                        node.add_child(grandchild);
+                                        node_map
+                                            .get_mut(&grandchild)
                                             .unwrap()
-                                            .get_children()
-                                            .collect_vec();
-                                        for grandchild in node_grandchildren {
-                                            node.add_child(grandchild);
-                                            node_map
-                                                .get_mut(&grandchild)
-                                                .unwrap()
-                                                .set_parent(Some(node.get_id()))
-                                        }
+                                            .set_parent(Some(node.get_id()))
                                     }
-                                    false => {}
                                 }
                             });
                             if node.get_id() == new_tree_root_id {

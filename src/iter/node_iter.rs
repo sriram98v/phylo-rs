@@ -33,15 +33,12 @@ where
         let mut out_vec = vec![];
         let mut visited = vec![];
         while let Some(x) = stack.pop_front() {
-            match visited.contains(&x.get_id()) {
-                false => {
-                    visited.push(x.get_id());
-                    out_vec.push(x);
-                    for child_id in x.get_children().collect_vec().into_iter().rev() {
-                        stack.push_front(self.get_node(child_id).unwrap());
-                    }
+            if !visited.contains(&x.get_id()) {
+                visited.push(x.get_id());
+                out_vec.push(x);
+                for child_id in x.get_children().collect_vec().into_iter().rev() {
+                    stack.push_front(self.get_node(child_id).unwrap());
                 }
-                true => {}
             };
         }
         out_vec.into_iter()
@@ -77,15 +74,12 @@ where
         let mut out_vec = vec![];
         let mut visited = vec![];
         while let Some(x) = stack.pop_front() {
-            match visited.contains(&x.get_id()) {
-                false => {
-                    visited.push(x.get_id());
-                    out_vec.push(x);
-                    for child_id in x.get_children().collect_vec().into_iter().rev() {
-                        stack.push_front(self.get_node(child_id).unwrap());
-                    }
+            if !visited.contains(&x.get_id()) {
+                visited.push(x.get_id());
+                out_vec.push(x);
+                for child_id in x.get_children().collect_vec().into_iter().rev() {
+                    stack.push_front(self.get_node(child_id).unwrap());
                 }
-                true => {}
             };
         }
         out_vec.into_iter()
@@ -100,20 +94,17 @@ where
         let mut out_vec = vec![];
         let mut visited = vec![];
         while let Some(x) = stack.pop_front() {
-            match visited.contains(&x) {
-                false => {
-                    visited.push(x);
-                    out_vec.push(x);
-                    for child_id in self
-                        .get_node_children_ids(x)
-                        .collect_vec()
-                        .into_iter()
-                        .rev()
-                    {
-                        stack.push_front(child_id);
-                    }
+            if !visited.contains(&x) {
+                visited.push(x);
+                out_vec.push(x);
+                for child_id in self
+                    .get_node_children_ids(x)
+                    .collect_vec()
+                    .into_iter()
+                    .rev()
+                {
+                    stack.push_front(child_id);
                 }
-                true => {}
             };
         }
         out_vec.into_iter()
