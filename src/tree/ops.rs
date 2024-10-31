@@ -1,4 +1,3 @@
-use fxhash::FxHashMap as HashMap;
 use itertools::Itertools;
 use std::{
     fmt::{Debug, Display},
@@ -9,6 +8,11 @@ use super::{Clusters, EulerWalk, RootedTree, DFS};
 use crate::{
     iter::node_iter::Ancestors, node::simple_rnode::RootedTreeNode, tree::simple_rtree::TreeNodeID,
 };
+
+#[cfg(feature = "non_crypto_hash")]
+use fxhash::FxHashMap as HashMap;
+#[cfg(not(feature = "non_crypto_hash"))]
+use std::collections::HashMap;
 
 /// A trait describing subtree-prune-regraft operations
 pub trait SPR: RootedTree + DFS + Sized {

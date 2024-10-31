@@ -18,15 +18,15 @@ categories = ["data-structures", "science"]
 name = "phylo"
 path = "src/lib.rs"
 
-
 [features]
-default = []
+default = ["non_crypto_hash"]
+non_crypto_hash = ["dep:fxhash"]
 
 [dependencies]
 itertools = "0.11.0"
 num = "0.4.1"
 rand = "0.8.5"
-fxhash = "0.2.1"
+fxhash = { version = "0.2.1", optional = true }
 vers-vecs = "1.5.1"
 thiserror = "1.0.65"
 

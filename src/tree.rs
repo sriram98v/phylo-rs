@@ -12,18 +12,21 @@ pub mod simple_rtree;
 pub mod simulation;
 
 use core::f32;
-use fxhash::FxHashMap as HashMap;
 use simulation::{Uniform, Yule};
 use std::ops::Index;
 
 use itertools::Itertools;
 use rand::prelude::IteratorRandom;
 
-use crate::prelude::*;
-
 use crate::iter::{BFSIterator, DFSPostOrderIterator};
 use crate::node::{Node, NodeID};
+use crate::prelude::*;
 use vers_vecs::BinaryRmq;
+
+#[cfg(feature = "non_crypto_hash")]
+use fxhash::FxHashMap as HashMap;
+#[cfg(not(feature = "non_crypto_hash"))]
+use std::collections::HashMap;
 
 /// Arena memory-managed tree struct
 #[derive(Debug, Clone)]

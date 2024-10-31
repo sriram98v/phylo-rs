@@ -1,7 +1,10 @@
 #![allow(clippy::needless_lifetimes)]
 
-use fxhash::FxHashMap as HashMap;
-use fxhash::FxHashSet as HashSet;
+#[cfg(feature = "non_crypto_hash")]
+use fxhash::{FxHashMap as HashMap, FxHashSet as HashSet};
+#[cfg(not(feature = "non_crypto_hash"))]
+use std::collections::{HashMap, HashSet};
+
 use std::{collections::VecDeque, ops::Index};
 
 use itertools::Itertools;
