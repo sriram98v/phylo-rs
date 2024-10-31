@@ -1,6 +1,6 @@
 use crate::{
     node::simple_rnode::RootedMetaNode,
-    tree::{RootedMetaTree, RootedTree},
+    prelude::{RootedMetaTree, RootedTree},
 };
 
 /// A trait describing generation of a random binary tree under the Yule model.

@@ -19,8 +19,9 @@ name = "phylo"
 path = "src/lib.rs"
 
 [features]
-default = ["non_crypto_hash"]
+default = ["non_crypto_hash", "simple_rooted_tree"]
 non_crypto_hash = ["dep:fxhash"]
+simple_rooted_tree = []
 
 [dependencies]
 itertools = "0.11.0"

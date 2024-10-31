@@ -117,7 +117,10 @@ pub mod prelude {
     #[doc(no_inline)]
     pub use crate::tree::ops::*;
     #[doc(no_inline)]
-    pub use crate::tree::simulation::*;
+    pub use crate::tree::simple_rtree::*;
     #[doc(no_inline)]
-    pub use crate::tree::{simple_rtree::*, SimpleRootedTree};
+    pub use crate::tree::simulation::*;
+
+    #[cfg(feature = "simple_rooted_tree")]
+    pub use crate::tree::SimpleRootedTree;
 }

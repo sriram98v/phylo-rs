@@ -4,7 +4,7 @@ use std::{
     hash::Hash,
 };
 
-use super::{Clusters, EulerWalk, RootedTree, DFS};
+use crate::prelude::{Clusters, EulerWalk, RootedTree, DFS};
 use crate::{
     iter::node_iter::Ancestors, node::simple_rnode::RootedTreeNode, tree::simple_rtree::TreeNodeID,
 };
