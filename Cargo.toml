@@ -3,9 +3,7 @@ name = "phylo"
 version = "0.3.2"
 edition = "2021"
 
-authors = [
-  "Sriram Vijendran"
-]
+authors = ["Sriram Vijendran"]
 license = "MIT"
 
 repository = "https://github.com/sriram98v/phylo-rs"
@@ -20,11 +18,14 @@ categories = ["data-structures", "science"]
 name = "phylo"
 path = "src/lib.rs"
 
+
+[features]
+default = []
+
 [dependencies]
 itertools = "0.11.0"
 num = "0.4.1"
 rand = "0.8.5"
-rayon = "1.10.0"
 fxhash = "0.2.1"
 vers-vecs = "1.5.1"
 thiserror = "1.0.65"
