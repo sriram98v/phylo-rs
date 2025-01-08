@@ -27,10 +27,12 @@ mod simple_rooted_tree {
     use vers_vecs::BinaryRmq;
     use std::fmt::Debug;
     
-    #[cfg(feature = "non_crypto_hash")]
-    use fxhash::{FxHashMap as HashMap, FxHashSet as HashSet};
     #[cfg(not(feature = "non_crypto_hash"))]
-    use std::collections::HashMap;
+    use fxhash::{FxHashMap as HashMap, FxHashSet as HashSet};
+    #[cfg(feature = "non_crypto_hash")]
+    use std::collections::{HashMap,HashSet};
+
+    use std::hash::Hash;
 
     /// Type alias for Phylogenetic tree.
     pub type PhyloTree = SimpleRootedTree<String,f32,f32>;
@@ -366,10 +368,56 @@ mod simple_rooted_tree {
 
     impl<T,W,Z> ClusterAffinity for SimpleRootedTree<T,W,Z> 
     where 
-        T: NodeTaxa,
+        T: NodeTaxa + Eq + Hash,
         W: EdgeWeight,
         Z: NodeWeight,
-    {}
+    {
+        fn ca(&self, tree: &Self) -> usize {
+            let mut csize = HashMap::new();
+            let mut cluster_lookup: HashMap<NodeID,HashSet<T>> = HashMap::new();
+            let mut total = 0;
+            for node in self.postord_nodes(self.get_root_id()) {
+                let c = if node.is_leaf(){
+                    HashSet::from([node.get_taxa().expect("Leaf node without taxa found").clone()])
+                } else {
+                    node.get_children().map(|x| cluster_lookup.get(&x).expect("value not found in cluster lookup").clone())
+                                       .fold(HashSet::<T>::new(), |acc, e| &acc | &e)
+                };
+                cluster_lookup.insert(node.get_id(),c);
+            } 
+            for c in cluster_lookup.values() {
+                let mut intersection = HashMap::new();
+                let mut dist = c.len();
+                for node in tree.postord_nodes(tree.get_root_id()){
+                    let mut int = 0;
+                    let mut size = 0;
+                    if node.is_leaf(){
+                        let l = node.get_taxa().expect("Leaf node without taxa found");
+                        size = 1;
+                        if c.contains(&l){
+                            int += 1;
+                        }
+                    } else {
+                        for child in node.get_children(){
+                            size += csize.get(&child).expect("csize did not have preexisting entry");
+                            int += intersection.get(&child).expect("intersection did not have preexisting entry");
+                        }
+                    }
+                    let newdist = c.len() + size - (2*int);
+                    dist = if dist > newdist{
+                        newdist
+                    } else {
+                        dist
+                    };
+                    csize.insert(node.get_id(),size);
+                    intersection.insert(node.get_id(),int);
+                }
+                total += dist;
+            }
+            return total;
+
+        }
+    }
 
     impl<T,W,Z> RobinsonFoulds for SimpleRootedTree<T,W,Z> 
     where 
