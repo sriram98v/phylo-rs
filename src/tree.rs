@@ -983,16 +983,17 @@ mod simple_rooted_tree {
     {
         fn graft(
             &mut self,
-            tree: Self,
+            mut tree: Self,
             edge: (TreeNodeID<Self>, TreeNodeID<Self>),
         ) -> Result<(), ()> {
             let new_node = self.next_node();
-            let new_node_id = dbg!(new_node.get_id());
-            for node in tree.dfs(tree.get_root_id()) {
+            let new_node_id = new_node.get_id();
+            for node in tree.get_nodes_mut() {
+                node.set_id(self.next_node().get_id());
                 self.set_node(node.clone());
             }
             self.split_edge(edge, new_node);
-            self.set_child(dbg!(new_node_id), dbg!(tree.get_root_id()));
+            self.set_child(new_node_id, tree.get_root_id());
             Ok(())
         }
         fn prune(&mut self, node_id: TreeNodeID<Self>) -> Result<Self, ()> {
