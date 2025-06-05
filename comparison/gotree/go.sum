@@ -1,0 +1,6 @@
+github.com/evolbioinfo/gotree v0.4.5 h1:+J33bb/QBUZDHy23q270XMOCZR2Mq/Gr1258JMewy84=
+github.com/evolbioinfo/gotree v0.4.5/go.mod h1:UvD1CTJ0KDLGktdceM8yZ3c/YcB58wfoIq8oxaGYSU4=
+github.com/fredericlemoine/bitset v1.2.0 h1:RMdEqiqXAuufXz6gk1RO95w2p/Z7pFL0k45w8HVm1PI=
+github.com/fredericlemoine/bitset v1.2.0/go.mod h1:fEGlWPx4YvxYdUdd5ULnC/Tb0CLOdGX/Lgpx4ri32aU=
+github.com/fredericlemoine/gostats v0.1.1 h1:vODa3brG7tt98FNAkfLC7KFIg3qrm5li9GHbmjLLWxk=
+github.com/fredericlemoine/gostats v0.1.1/go.mod h1:5OBBRN6vXzgXAJfprZ1WPahOHPJw2wJjmVtijhTqsX8=

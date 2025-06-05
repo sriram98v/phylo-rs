@@ -13,7 +13,7 @@ sns.set(style='white', rc={'figure.figsize':(14,10)})
 mpl.rcParams["figure.figsize"] = (10, 8)
 mpl.rcParams["figure.dpi"] = 300
 
-file = "./runtimes-temp.csv"
+file = "./runtimes.csv"
 data = dict()
 with open(file, 'r') as f:
     lines = [i.split(",") for i in f.readlines()]
