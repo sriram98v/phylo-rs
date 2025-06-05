@@ -511,7 +511,7 @@ pub trait Clusters: DFS + BFS + Sized {
             .map(|(idx, id)| (id, idx))
             .collect();
         let leaf_ids_rev: Vec<TreeNodeID<Self>> =
-            leaf_ids.iter().map(|(id,_)| *id).collect();
+            leaf_ids.keys().copied().collect();
         let num_leaves = leaf_ids.len();
         let mut bps: HashMap<TreeNodeID<Self>, BitVec> = vec![].into_iter().collect();
         for n_id in self.postord_ids(self.get_root_id()) {
@@ -529,14 +529,14 @@ pub trait Clusters: DFS + BFS + Sized {
                         .get_node_children_ids(n_id)
                         .map(|x| bps.get(&x).unwrap())
                         .for_each(|x| {let _ = bp.apply_mask_or(x);});
-                    if !(self.get_node_parent_id(n_id)==Some(self.get_root_id())){
+                    if self.get_node_parent_id(n_id) != Some(self.get_root_id()) {
                         bps.insert(n_id, bp);        
                     }
                 }
             };
         }
 
-        return bps.into_values().map(move |bit_bp| {
+        bps.into_values().map(move |bit_bp| {
             let mut bp1 = Vec::with_capacity(leaf_ids.len());
             let mut bp2 = Vec::with_capacity(leaf_ids.len());
             for idx in 0..bit_bp.len(){
@@ -550,7 +550,7 @@ pub trait Clusters: DFS + BFS + Sized {
                 }
             }
             (bp1.into_iter(), bp2.into_iter())
-        });
+        })
     }
 
     /// Returns median NodeID of a set of leaves in a tree.
@@ -578,7 +578,7 @@ pub trait Clusters: DFS + BFS + Sized {
                 .max_by(|x, y| {
                     let x_cluster_size = cluster_sizes.get(x).unwrap();
                     let y_cluster_size = cluster_sizes.get(y).unwrap();
-                    x_cluster_size.cmp(&y_cluster_size)
+                    x_cluster_size.cmp(y_cluster_size)
                 })
                 .unwrap();
             if cluster_sizes.get(&median_node_id).unwrap() <= &(leaf_ids.len() / 2) {

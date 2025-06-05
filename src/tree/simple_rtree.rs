@@ -299,9 +299,9 @@ where
         let parent_id = self
             .get_node_parent_id(node_id)
             .expect("Node has no siblings!");
-        return self
+        self
             .get_node_children(parent_id)
-            .filter(move |x| x.get_id() != node_id);
+            .filter(move |x| x.get_id() != node_id)
     }
 
     /// Returns iterator of NodeID's of node siblings

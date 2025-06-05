@@ -956,10 +956,7 @@ mod simple_rooted_tree {
                     tmp.push(')');
                 }
             }
-            match &node.get_taxa(){
-                Some(taxa_str) => {tmp.push_str(&taxa_str.to_string());},
-                None => {}
-            };
+            if let Some(taxa_str) = &node.get_taxa() {tmp.push_str(&taxa_str.to_string());};
             if let Some(w) = node.get_weight() {
                 tmp.push(':');
                 tmp.push_str(&w.to_string());

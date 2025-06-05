@@ -303,13 +303,13 @@ where
             return vector.fold(<TreeNodeZeta<Self>>::zero(), |acc, x| acc.max(x));
         }
         if norm == 1 {
-            return vector.map(|x| x.clone()).sum();
+            return vector.sum();
         }
         vector
             .map(|x| {
             let mut out = <TreeNodeZeta<Self>>::one();
                 for _ in 0..norm{
-                    out = out* x.clone();
+                    out = out* x;
                 }
                 out
             })
