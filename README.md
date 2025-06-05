@@ -36,26 +36,16 @@ The simplest way to build a tree is to create an empty tree, add a root node, an
 
 use phylo::prelude::*;
 
+let mut tree = PhyloTree::new(1);
 
-let mut tree = SimpleRootedTree::new(1);
-
-
-let new_node = Node::new(2);
-
+let new_node = PhyloNode::new(2);
 tree.add_child(tree.get_root_id(), new_node);
-
-let new_node = Node::new(3);
-
+let new_node = PhyloNode::new(3);
 tree.add_child(tree.get_root_id(), new_node);
-
-let new_node: Node = Node::new(4);
-
+let new_node: PhyloNode = PhyloNode::new(4);
 tree.add_child(2, new_node);
-
-let new_node: Node = Node::new(5);
-
+let new_node: PhyloNode = PhyloNode::new(5);
 tree.add_child(2, new_node);
-
 ```
 
 
@@ -67,11 +57,8 @@ This library can build trees strings (or files) encoded in the [newick](https://
 
 use phylo::prelude::*;
 
-
 let input_str = String::from("((A:0.1,B:0.2),C:0.6);");
-
-let tree = SimpleRootedTree::from_newick(input_str.as_bytes())?;
-
+let tree = PhyloTree::from_newick(input_str.as_bytes()).unwrap();
 ```
 
 
@@ -83,16 +70,11 @@ Several traversals are implemented to visit nodes in a particular order: pre- an
 
 use phylo::prelude::*;
 
-
 let input_str = String::from("((A:0.1,B:0.2),C:0.6);");
-
-let tree = SimpleRootedTree::from_newick(input_str.as_bytes())?;
-
+let tree = PhyloTree::from_newick(input_str.as_bytes()).unwrap();
 
 let dfs_traversal = tree.dfs(tree.get_root_id()).into_iter();
-
 let bfs_traversal = tree.bfs_ids(tree.get_root_id());
-
 let postfix_traversal = tree.postord_ids(tree.get_root_id());
 
 ```
@@ -107,42 +89,25 @@ Several metrics taking into account topology and branch lengths are implemented 
 
 use phylo::prelude::*;
 
-
-fn depth(tree: &SimpleRootedTree, node_id: usize) -> f32 {
-
-tree.depth(node_id) as f32
-
+fn depth(tree: &PhyloTree, node_id: usize) -> f32 {
+    tree.depth(node_id) as f32
 }
 
-
 let newick_1 = "((A:0.1,B:0.2):0.6,(C:0.3,D:0.4):0.5);";
-
 let newick_2 = "((D:0.3,C:0.4):0.5,(B:0.2,A:0.1):0.6);";
 
-
-let tree_1 = SimpleRootedTree::from_newick(newick_1.as_bytes())?;
-
-let tree_2 = SimpleRootedTree::from_newick(newick_2.as_bytes())?;
-
+let mut tree_1 = PhyloTree::from_newick(newick_1.as_bytes()).unwrap();
+let mut tree_2 = PhyloTree::from_newick(newick_2.as_bytes()).unwrap();
 
 tree_1.precompute_constant_time_lca();
-
 tree_2.precompute_constant_time_lca();
 
-
 tree_1.set_zeta(depth);
-
 tree_2.set_zeta(depth);
 
 
-
-let rfs = tree_1.rfs(&tree_2);
-
-let wrfs = tree_1.wrfs(&tree_2);
-
 let ca = tree_1.ca(&tree_2);
-
-let cophen = tree_1.cophen_dist_naive(&tree_2, 2);
+let cophen = tree_1.cophen_dist(&tree_2, 2);
 
 ```
 

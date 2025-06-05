@@ -1,0 +1,3 @@
+[submodule "comparison/genesis/genesis"]
+	path = comparison/genesis/genesis
+	url = https://github.com/lczech/genesis.git

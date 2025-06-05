@@ -343,7 +343,19 @@ fn robinson_foulds() {
     let t1 = PhyloTree::from_newick(input_str.as_bytes()).unwrap();
     let input_str: String = String::from("(A,(D,(C,B)));");
     let t2 = PhyloTree::from_newick(input_str.as_bytes()).unwrap();
-    assert_eq!(t1.rfs(&t2), 1);
+    assert_eq!(t1.rfs(&t2), 2);
+
+    let input_str: String = String::from("((A:0.1,B:0.2):0.6,(C:0.3,D:0.4):0.5);");
+    let t1 = PhyloTree::from_newick(input_str.as_bytes()).unwrap();
+    let input_str: String = String::from("((A:0.3,C:0.4):0.5,(B:0.2,D:0.1):0.6);");
+    let t2 = PhyloTree::from_newick(input_str.as_bytes()).unwrap();
+    assert_eq!(t1.rfs(&t2), 2);
+
+    let input_str: String = String::from("(A, ((B, (C, (D, E))), ((F, G), (H, I))));");
+    let t1 = PhyloTree::from_newick(input_str.as_bytes()).unwrap();
+    let input_str: String = String::from("(A, ((B, (C, (D, (H, I)))), ((F, G), E)));");
+    let t2 = PhyloTree::from_newick(input_str.as_bytes()).unwrap();
+    assert_eq!(t1.rfs(&t2), 8);
 }
 
 #[test]
