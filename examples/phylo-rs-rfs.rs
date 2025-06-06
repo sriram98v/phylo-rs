@@ -15,7 +15,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     
     let now = Instant::now();
 
-    let rf = t1.rfs(&t2);
+    let rf = t1.rf(&t2);
 
     let elapsed = now.elapsed();
     println!("{}", &rf);

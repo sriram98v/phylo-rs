@@ -83,7 +83,7 @@ where
     <Self as RootedTree>::Node: RootedMetaNode,
 {
     /// Returns Robinson Foulds distance between tree and self.
-    fn rfs(&self, tree: &Self) -> usize {
+    fn rf(&self, tree: &Self) -> usize {
         let mut dist = 0;
         let mut all_taxa: HashSet<&TreeNodeMeta<Self>> = self.get_taxa_space().collect();
         all_taxa.extend(tree.get_taxa_space());
