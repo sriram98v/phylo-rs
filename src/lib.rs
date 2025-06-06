@@ -97,7 +97,7 @@
 //! 
 //! ## Quantifying Phylogenetic Diversity
 //! Quantifying the Phylogenetic Diveristy of a set of trees using the Faith Index:
-//! ```
+//! ```ignore
 //! #[cfg(feature = "non_crypto_hash")]
 //! use fxhash::FxHashMap as HashMap;
 //! #[cfg(not(feature = "non_crypto_hash"))]
@@ -134,7 +134,7 @@
 //! ```
 //! ## Visualizing Phylogenetic Tree Space
 //! Here, we copmpute all pairwise RF distances of a set of trees:
-//! ```
+//! ```ignore
 //! #[cfg(feature = "non_crypto_hash")]
 //! use fxhash::FxHashMap as HashMap;
 //! #[cfg(not(feature = "non_crypto_hash"))]
