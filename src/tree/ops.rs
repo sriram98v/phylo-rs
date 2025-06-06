@@ -34,12 +34,12 @@ pub trait SPR: RootedTree + DFS + Sized {
 }
 
 /// A trait describing Nearest Neighbour interchange operations
-pub trait NNI<'a>
+pub trait NNI
 where
     Self: RootedTree + Sized,
 {
     /// Performs an NNI operation
-    fn nni(&mut self, parent_id: TreeNodeID<Self>) -> Result<(), ()>;
+    fn nni(&mut self, node_id: TreeNodeID<Self>, left_ch: bool) -> Result<(), ()>;
 }
 
 /// A trait describing rerooting a tree

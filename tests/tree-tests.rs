@@ -49,34 +49,10 @@ fn rfs_set() {
         // out
     });
     bar.finish();
-
-
-    // let par_trees = trees.iter().combinations(2).par_bridge().map(|v| (v[0], v[1])).map(|(x,y)| {
-    //     let out = format!("{}-{}-{}-{}-{}\n", x.0, y.0, x.1, y.1, x.2.rfs(&y.2));
-    //     file.lock().unwrap().write_all(out.as_bytes()).unwrap();
-    //     // dbg!(out);
-    //     bar.inc(1);
-    //     out
-    // }).collect::<Vec<_>>();
-
-    // dbg!(&par_trees[0]);
-    // for v in par_trees{
-    //     let x = v[0];
-    //     let y = v[1];
-    //     let out = format!("{}-{}-{}-{}-{}\n", x.0, y.0, x.1, y.1, x.2.rfs(&y.2));
-    //     output_file.write_all(out.as_bytes()).unwrap();
-    //     bar.inc(1);
-    // }
-    // bar.finish();
 }
 
 #[test]
 fn pd() {
-    // let tree = PhyloTree::from_newick(read_to_string("/home/sriramv/Datasets/phylo-rs/study-1/H1_Jan2025_after2015.treefile").unwrap().as_bytes()).unwrap();
-
-    // dbg!(tree.num_taxa());
-
-
     let paths: HashMap<_, _> = std::fs::read_dir("examples/phylogenetic-diversity/trees")
         .unwrap()
         .map(|x| (x.as_ref().unwrap().file_name().into_string().unwrap(), std::fs::read_dir(x.unwrap().path()).unwrap()
@@ -104,8 +80,6 @@ fn pd() {
         let out = format!("{}: {}\n", clade, pds.iter().map(|x| x.to_string()).join(","));
         output_file.write_all(out.as_bytes()).unwrap()
     }
-    // dbg!(&paths);
-
 }
 
 
@@ -212,6 +186,22 @@ fn tree_spr() {
     tree.spr((1, 2), (5, 4)).unwrap();
     dbg!(format!("{}", &tree.to_newick()));
 }
+
+#[test]
+fn tree_nni() {
+    let input_str = String::from("(A,(B,(C,D)));");
+    let mut tree = PhyloTree::from_newick(input_str.as_bytes()).unwrap();
+    dbg!(format!("{}", &tree.to_newick()));
+    assert!(tree.nni(4, true).is_ok());
+    dbg!(format!("True: {}", &tree.to_newick()));
+
+    let input_str = String::from("(A,(B,(C,D)));");
+    let mut tree = PhyloTree::from_newick(input_str.as_bytes()).unwrap();
+    dbg!(format!("{}", &tree.to_newick()));
+    assert!(tree.nni(4, false).is_ok());
+    dbg!(format!("False: {}", &tree.to_newick()));
+}
+
 #[test]
 fn tree_cluster() {
     let input_str: String = String::from("((A,B),C);");

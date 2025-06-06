@@ -1010,6 +1010,40 @@ mod simple_rooted_tree {
         }
     }
 
+    impl<T,W,Z> NNI for SimpleRootedTree<T,W,Z> 
+    where 
+        T: NodeTaxa,
+        W: EdgeWeight,
+        Z: NodeWeight,
+    {
+        fn nni(
+            &mut self,
+            node_id: TreeNodeID<Self>,
+            left_ch: bool
+        ) -> Result<(), ()> {
+            if self.is_leaf(node_id) || node_id==self.get_root_id(){
+                panic!("NNI cannot be performed at a leaf or root!")
+            }
+            else{
+                let node_parent_id = self.get_node_parent_id(node_id).unwrap();
+
+                let node_ch_ids = self.get_node_children_ids(node_id).collect_vec();
+                let node_ch1 = node_ch_ids[left_ch as usize];
+                let node_sibling = self.get_node_children_ids(node_parent_id).filter(|x| x!=&node_id).collect_vec()[0];
+                
+                // set node_ch2 as sibling to parent node
+                self.delete_edge(node_id, node_ch1);
+                self.delete_edge(node_parent_id, node_sibling);
+
+                self.set_child(node_parent_id, node_ch1);
+                self.set_child(node_id, node_sibling);
+
+
+                Ok(())
+            }
+        }
+    }
+
     impl<T,W,Z> Balance for SimpleRootedTree<T,W,Z> 
     where 
         T: NodeTaxa,

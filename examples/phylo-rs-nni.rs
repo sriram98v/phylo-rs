@@ -11,16 +11,16 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let mut tree = PhyloTree::from_newick(&input_str.as_bytes())?;
     let leaf_edges = tree.get_leaf_ids().map(|l_id| (tree.get_node_parent_id(l_id).unwrap(), l_id)).collect::<Vec<_>>();
-    let e1 = leaf_edges[0];
-    let e2 = leaf_edges[1];
+    let node_id = leaf_edges[0].0;
+
 
     
     let now = Instant::now();
 
-    let sucess = tree.spr(e1, e2);
+    let success = tree.nni(node_id, true);
 
     let elapsed = now.elapsed();
-    println!("{}", &sucess.is_ok());
+    println!("{}", &success.is_ok());
     println!("Internal time: {:.7?}", elapsed.as_secs_f64());
 
     Ok(())
