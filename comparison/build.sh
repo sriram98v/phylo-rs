@@ -1,5 +1,18 @@
 #!/bin/bash
 
+# Build gotree
+cd gotree
+for i in *.go; do
+    go build $i
+done
+
+mv gotree-lca time/
+mv gotree-traverse time/
+mv gotree-yts time/
+mv gotree-read-newick mem/
+
+cd ..
+
 # Build Genesis
 cd genesis
 rm -f genesis/apps/*.cpp
@@ -16,7 +29,6 @@ cp genesis/bin/apps/genesis-traverse time/
 cd ..
 
 # Build CompactTree
-
 cd compacttree
 g++ -o time/CompactTree-traverse CompactTree-traverse.cpp
 g++ -o mem/CompactTree-read-newick CompactTree-read-newick.cpp

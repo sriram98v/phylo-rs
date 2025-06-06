@@ -10,7 +10,7 @@ import (
 	"github.com/evolbioinfo/gotree/tree"
 )
 
-func lca_main() {
+func main() {
 	var t *tree.Tree
 	var err error
 	var f *os.File
