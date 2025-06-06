@@ -539,13 +539,13 @@ pub trait Clusters: DFS + BFS + Sized {
         bps.into_values().map(move |bit_bp| {
             let mut bp1 = Vec::with_capacity(leaf_ids.len());
             let mut bp2 = Vec::with_capacity(leaf_ids.len());
-            for idx in 0..bit_bp.len(){
+            for (idx, bit) in leaf_ids_rev.iter().enumerate().take(bit_bp.len()){
                  match bit_bp.is_bit_set(idx).unwrap() {
                     true => {
-                        bp1.push(leaf_ids_rev[idx].to_owned());
+                        bp1.push(bit.to_owned());
                     }
                     false => {
-                        bp2.push(leaf_ids_rev[idx].to_owned());
+                        bp2.push(bit.to_owned());
                     }
                 }
             }

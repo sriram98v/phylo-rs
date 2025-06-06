@@ -331,18 +331,14 @@ where
         Some(())
     }
 
-    // /// gets lowest common ancestor nodeID
-    // fn get_mrca_id(&self, node_id_vec: &[TreeNodeID<Self>])->TreeNodeID<Self>{
-
-    // }
-
-    ///
+    /// Create new empty tree
     fn new()->Self;
 
-    ///
+    /// Create new empty tree with given capacity. The capacity is the number of vertices in the tree. More memory may be allocated according to the underlying allocation strategy.
     fn with_capacity(cap: usize)->Self;
 
-    ///
+    /// Create new tree from given vertices.
+    /// <div class="warning">This does not check for loops. If the nodes induce an edge, it will break downstream analysis!</div>
     fn from_nodes(nodes: Vec<Option<Self::Node>>, root_id: TreeNodeID<Self>)->Self;
 
     /// Supresses all nodes of degree 2
