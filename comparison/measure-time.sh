@@ -140,4 +140,5 @@ run_all_tests genesis/time data runtimes.csv
 run_all_tests treeswift/time data runtimes.csv
 run_all_tests dendropy/time data runtimes.csv
 run_all_tests phylo-rs/time data runtimes.csv
+run_all_tests gotree/time data runtimes.csv
 run_all_tests ape/time data runtimes.csv

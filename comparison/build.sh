@@ -3,6 +3,7 @@
 # Build gotree
 cd gotree
 for i in *.go; do
+    echo building $i
     go build $i
 done
 
