@@ -16,3 +16,4 @@ comparison/gotree/mem/*
 comparison/gotree/time/*
 *.csv
 *.png
+*.eps
