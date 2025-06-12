@@ -99,38 +99,32 @@ where
         let mut self_out_bps: HashSet<BitVec> = vec![].into_iter().collect();
         for n_id in self.postord_ids(self.get_root_id()) {
             let mut bp = BitVec::from_zeros(num_taxa);
+            let mut bp_rev = BitVec::from_ones(num_taxa);
             match self.is_leaf(n_id) {
                 true => {
                     let leaf_meta = self.get_node_taxa(n_id).unwrap();
                     bp.flip_bit(*all_taxa_map.get(leaf_meta).unwrap());
+
+                    let _ = bp_rev.apply_mask_xor(&bp);
                     self_bps.insert(n_id, bp.clone());  
+                    self_out_bps.insert(bp);
+                    self_out_bps.insert(bp_rev);
                 }
                 false => {
                     if n_id==self.get_root_id(){
-                        let chids = self.get_node_children_ids(n_id).collect_vec();
-                        let mut skip_root = false;
-                        for chid in chids.iter(){
-                            if self.is_leaf(*chid){
-                                skip_root=true;
-                            }
-                        }
-                        if skip_root{
-                            break;
-                        }
-                        else{
-                            let chid = chids[0];
-                            let root_bp = self_bps.get(&chid).cloned().unwrap();
-                            self_out_bps.insert(root_bp);
-                        }
-                        break;
+                        continue;
                     }
-                    self.get_node_children_ids(n_id)
-                        .map(|x| self_bps.get(&x).unwrap())
-                        .for_each(|x| {let _ = bp.apply_mask_or(x);});
-                    if self.get_node_parent_id(n_id)!=Some(self.get_root_id()){
-                        self_out_bps.insert(bp.clone());
+                    else{
+                        self.get_node_children_ids(n_id)
+                            .map(|x| self_bps.get(&x).unwrap())
+                            .for_each(|x| {let _ = bp.apply_mask_or(x);});
+
+                        let _ = bp_rev.apply_mask_xor(&bp);
+                        self_bps.insert(n_id, bp.clone());
+                        self_out_bps.insert(bp);
+                        self_out_bps.insert(bp_rev);
+                        
                     }
-                    self_bps.insert(n_id, bp);        
                 }
             };
         }
@@ -139,59 +133,56 @@ where
         let mut tree_out_bps: HashSet<BitVec> = vec![].into_iter().collect();
         for n_id in tree.postord_ids(tree.get_root_id()) {
             let mut bp = BitVec::from_zeros(num_taxa);
+            let mut bp_rev = BitVec::from_ones(num_taxa);
+
             match tree.is_leaf(n_id) {
                 true => {
                     let leaf_meta = tree.get_node_taxa(n_id).unwrap();
                     bp.flip_bit(*all_taxa_map.get(leaf_meta).unwrap());
-                    tree_bps.insert(n_id, bp.clone());  
+
+                    let _ = bp_rev.apply_mask_xor(&bp);
+
+                    tree_bps.insert(n_id, bp.clone());
+                    tree_out_bps.insert(bp);
+                    tree_out_bps.insert(bp_rev);
                 }
                 false => {
                     if n_id==tree.get_root_id(){
-                        let chids = tree.get_node_children_ids(n_id).collect_vec();
-
-                        let mut skip_root = false;
-                        for chid in chids.iter(){
-                            if tree.is_leaf(*chid){
-                                skip_root=true;
-                            }
-                        }
-                        if skip_root{
-                            break;
-                        }
-                        else{
-                            let chid = chids[0];
-                            let root_bp = tree_bps.get(&chid).cloned().unwrap();
-                            tree_out_bps.insert(root_bp);
-                        }
-                        break;
+                        continue;
                     }
-                    tree.get_node_children_ids(n_id)
+                    else {
+                        tree.get_node_children_ids(n_id)
                         .map(|x| tree_bps.get(&x).unwrap())
-                        .for_each(|x| {let _ = bp.apply_mask_or(x);});
-                    if tree.get_node_parent_id(n_id)!=Some(tree.get_root_id()){
-                        tree_out_bps.insert(bp.clone());
+                        .for_each(|x| {let _ = bp.apply_mask_or(x);});    
+
+                        let _ = bp_rev.apply_mask_xor(&bp);
+
+                        tree_bps.insert(n_id, bp.clone());
+                        tree_out_bps.insert(bp);
+                        tree_out_bps.insert(bp_rev);
                     }
-                    tree_bps.insert(n_id, bp);
                 }
             };
         }
-
         for i in self_out_bps.iter() {
-            let mut i_rev = BitVec::from_ones(num_taxa);
-            let _ = i_rev.apply_mask_xor(i);
-            if !(tree_out_bps.contains(i) || tree_out_bps.contains(&i_rev)) {
+            if tree_out_bps.contains(i){
+                continue;                
+            }
+            else{
                 dist += 1;
             }
         }
         for i in tree_out_bps.iter() {
-            let mut i_rev = BitVec::from_ones(num_taxa);
-            let _ = i_rev.apply_mask_xor(i);
-            if !(self_out_bps.contains(i) || self_out_bps.contains(&i_rev)) {
+            if self_out_bps.contains(i){
+                continue;                
+            }
+            else{
                 dist += 1;
             }
+
         }
         
-        dist
+        dist/2
     }
 }
 
