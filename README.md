@@ -293,3 +293,18 @@ cargo run --example phylogenetic-diversity
 cargo run --example pairwise-distances
 
 ```
+
+# Citation
+
+If you use Phylo-rs in your work, please cite [this](https://pmc.ncbi.nlm.nih.gov/articles/PMC12309125/) paper using:
+
+```
+@article{vijendran2025phylo,
+  title={Phylo-rs: an extensible phylogenetic analysis library in rust},
+  author={Vijendran, Sriram and Anderson, Tavis and Markin, Alexey and Eulenstein, Oliver},
+  journal={BMC bioinformatics},
+  volume={26},
+  pages={197},
+  year={2025}
+}
+```
