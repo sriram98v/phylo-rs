@@ -16,11 +16,11 @@ func main() {
 	if f, err = os.Open(os.Args[1]); err != nil {
 		panic(err)
 	}
-	var start = time.Now()
 	t, err = newick.NewParser(f).Parse()
 	if err != nil {
 		panic(err)
 	}
+	var start = time.Now()
 	t.PostOrder(func(cur *tree.Node, prev *tree.Node, e *tree.Edge) bool {
 		if e != nil {
 			// fmt.Print("%v", e.Length()))

@@ -13,12 +13,13 @@ int main( int argc, char** argv )
     }
     auto const infile = std::string( argv[1] );
 
+    auto const tree = CommonTreeNewickReader().read( utils::from_file( infile ));
+
     // Start the clock.
     std::cout << "Start reading" << utils::current_time() << "\n";
     auto const start = std::chrono::steady_clock::now();
 
     // Run, Forrest, Run!
-    auto const tree = CommonTreeNewickReader().read( utils::from_file( infile ));
 
     for( auto it : postorder( tree ) ) {
         std::cout << it.node().data<CommonNodeData>().name << " ";

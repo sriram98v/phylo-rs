@@ -9,8 +9,8 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let input_str: String = fs::read_to_string(args[1].clone())?;
 
+    let tree: Tree = Tree::from_newick(&input_str)?;
     let now = Instant::now();
-    let tree = Tree::from_newick(&input_str)?;
 
     let ancestor = tree.get_common_ancestor(
         &tree.get_by_name("Tip10").unwrap().id,

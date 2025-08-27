@@ -4,9 +4,10 @@
 int main(int argc, char** argv) {
     
     // Start the clock.
+    compact_tree tree(argv[1]);
+
     auto start = std::chrono::high_resolution_clock::now();
     
-    compact_tree tree(argv[1]);
 
     CT_NODE_T curr_node;
     std::tuple<const std::string*, CT_LENGTH_T, CT_NODE_T, const std::vector<CT_NODE_T>*> curr_data;

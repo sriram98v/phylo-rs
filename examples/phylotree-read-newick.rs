@@ -9,8 +9,8 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let input_str: String = fs::read_to_string(args[1].clone())?;
 
-    let now = Instant::now();
     let tree = Tree::from_newick(&input_str)?;
+    let now = Instant::now();
 
     let elapsed = now.elapsed();
     println!("{:?}", &tree.to_newick());

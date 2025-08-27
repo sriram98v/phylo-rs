@@ -13,12 +13,12 @@ if (length(args) < 1) {
 
 treefile <- args[1]
 
-# Start the clock
-start <- Sys.time()
-
 # Read the trees
 tree1 <- read.tree(treefile)
 # tree2 <- read.tree(tree2_file)
+
+# Start the clock
+start <- Sys.time()
 
 tips <- c("Tip60", "Tip126", "Tip118", "Tip161", "Tip25", "Tip127", "Tip38", "Tip186", "Tip21", "Tip56", "Tip78", "Tip70", "Tip115")
 

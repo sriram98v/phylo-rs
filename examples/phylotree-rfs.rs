@@ -10,9 +10,10 @@ fn main() -> Result<(), Box<dyn Error>> {
     let t1_str: String = fs::read_to_string(args[1].clone())?;
     let t2_str: String = fs::read_to_string(args[2].clone())?;
 
-    let now = Instant::now();
     let tree1 = Tree::from_newick(&t1_str)?;
     let tree2 = Tree::from_newick(&t2_str)?;
+
+    let now = Instant::now();
 
     let rf = tree1.robinson_foulds(&tree2).unwrap();
 
