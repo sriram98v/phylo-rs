@@ -10,13 +10,6 @@ int main(int argc, char** argv) {
     
 
     CT_NODE_T curr_node;
-    std::tuple<const std::string*, CT_LENGTH_T, CT_NODE_T, const std::vector<CT_NODE_T>*> curr_data;
-    const std::string* curr_label_ptr;
-    CT_LENGTH_T curr_length;
-    CT_NODE_T curr_parent;
-    const std::vector<CT_NODE_T>* curr_children_ptr;
-    size_t curr_children_size;
-    size_t curr_child_ind;
     compact_tree::preorder_iterator it_end = tree.preorder_end();
     for(compact_tree::preorder_iterator it = tree.preorder_begin(); it != it_end; ++it) {
         curr_node = *it;
