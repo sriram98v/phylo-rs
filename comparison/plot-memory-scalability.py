@@ -36,8 +36,8 @@ for n,(key,val) in enumerate(data.items()):
     # ax.set_title(f"Read Newick (Memory)")
     if key =="dendropy":
         ax.plot([1000, 2000, 5000, 10000, 20000, 50000], val[:6], label=f"{key}", linestyle=linestyles[2], marker=markers[1], markersize=5, color=colors[key])
-    elif key=="treeswift":
-        ax.plot([1000, 2000, 5000, 10000, 20000, 50000, 100000], val[:7], label=f"{key}", linestyle=linestyles[2], marker=markers[1], markersize=5, color=colors[key])
+    # elif key=="treeswift":
+    #     ax.plot([1000, 2000, 5000, 10000, 20000, 50000, 100000], val[:7], label=f"{key}", linestyle=linestyles[2], marker=markers[1], markersize=5, color=colors[key])
     else:
         if key=="phylo-rs":
             ax.plot([1000, 2000, 5000, 10000, 20000, 50000,100000,200000,500000,1000000], val, label=f"{key}", linestyle=linestyles[0], marker=markers[0], markersize=5, color=colors[key])
