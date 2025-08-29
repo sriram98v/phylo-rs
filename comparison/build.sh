@@ -31,8 +31,8 @@ cd ..
 
 # Build CompactTree
 cd compacttree
-g++ -o time/CompactTree-traverse CompactTree-traverse.cpp
-g++ -o mem/CompactTree-read-newick CompactTree-read-newick.cpp
+g++ -o time/CompactTree-traverse -O3 CompactTree-traverse.cpp
+g++ -o mem/CompactTree-read-newick -O3  CompactTree-read-newick.cpp
 
 cd ..
 
