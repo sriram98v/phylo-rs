@@ -925,16 +925,40 @@ mod simple_rooted_tree {
                     }
                     _ => {
                         // push taxa characters into taxa string
-                        while newick_string[str_ptr] != ':'
-                            && newick_string[str_ptr] != ')'
-                            && newick_string[str_ptr] != ','
-                            && newick_string[str_ptr] != '('
-                            && newick_string[str_ptr] != ';'
-                        {
-                            taxa_str.push(newick_string[str_ptr]);
-                            str_ptr += 1;
-                        }
-                    }
+                        if newick_string[str_ptr] == '\'' {
+                            // --- Quoted Label Parsing ---
+                            str_ptr += 1; // consume opening quote
+                            while str_ptr < newick_string.len() {
+                                if newick_string[str_ptr] == '\'' {
+                                    // Check for escaped quote ('')
+                                    if str_ptr + 1 < newick_string.len()
+                                        && newick_string[str_ptr + 1] == '\''
+                                    {
+                                        taxa_str.push('\''); // push a single quote
+                                        str_ptr += 2; // consume both quotes
+                                    } else {
+                                        // End of quoted label
+                                        str_ptr += 1; // consume closing quote
+                                        break;
+                                    }
+                                } else {
+                                    taxa_str.push(newick_string[str_ptr]);
+                                    str_ptr += 1;
+                                }
+                            }
+                        } else {
+                            // --- Unquoted Label Parsing (original logic) ---
+                            while str_ptr < newick_string.len()
+                                && newick_string[str_ptr] != ':'
+                                && newick_string[str_ptr] != ')'
+                                && newick_string[str_ptr] != ','
+                                && newick_string[str_ptr] != '('
+                                && newick_string[str_ptr] != ';'
+                            {
+                                taxa_str.push(newick_string[str_ptr]);
+                                str_ptr += 1;
+                            }
+                        }                    }
                 }
             }
             Ok(tree)
