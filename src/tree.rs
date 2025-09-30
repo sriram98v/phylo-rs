@@ -958,7 +958,8 @@ mod simple_rooted_tree {
                                 taxa_str.push(newick_string[str_ptr]);
                                 str_ptr += 1;
                             }
-                        }                    }
+                        }
+                    }
                 }
             }
             Ok(tree)
