@@ -274,7 +274,6 @@ fn contract_tree() {
         EulerWalk::get_node_depth(tree, node_id) as f32
     }
     let mut tree = PhyloTree::yule(10);
-    tree.precompute_constant_time_lca();
     dbg!(&tree);
     tree.precompute_constant_time_lca();
     tree.set_zeta(depth).unwrap();
@@ -291,6 +290,23 @@ fn contract_tree() {
     let mut new_tree = tree.contract_tree(taxa_subset.as_slice()).unwrap();
     println!("{}", new_tree.to_newick());
     new_tree.precompute_constant_time_lca();
+
+    let input_str: String = String::from("(1:1.13,((0:0.93,3:1.40):0.58,(2:1.14,4:1.04)):0.11);");
+    let mut tree: SimpleRootedTree<String, f32, f32> = SimpleRootedTree::from_newick(input_str.as_bytes()).unwrap();
+    dbg!(&tree);
+    tree.precompute_constant_time_lca();
+    let taxa_subset = vec![
+        "1".to_string(),
+        "0".to_string(),
+        "4".to_string(),
+        // "7".to_string(),
+    ].into_iter()
+    .map(|x| tree.get_taxa_node_id(&x).unwrap())
+    .collect_vec();
+
+    let new_tree = tree.contract_tree(taxa_subset.as_slice()).unwrap();
+    println!("{}", new_tree.to_newick());
+
 }
 
 #[test]

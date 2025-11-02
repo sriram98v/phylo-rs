@@ -564,6 +564,7 @@ mod simple_rooted_tree {
                                 // node should be added to both node_map and remove_list
                                 // if child of node is already in remove list, attach node children to node first
                                 let child_node_id = node_children_ids[0];
+                                let child_node_edge_weight = self.get_node(child_node_id).unwrap().get_weight().unwrap_or(W::zero());
 
                                 if remove_list[child_node_id] {
                                     node.remove_child(&child_node_id);
@@ -577,6 +578,15 @@ mod simple_rooted_tree {
                                             .as_mut()
                                             .unwrap()
                                             .set_parent(Some(node.get_id()));
+                                        let new_edge_weight = node_map[grandchild_id]
+                                            .as_ref()
+                                            .unwrap()
+                                            .get_weight()
+                                            .unwrap_or(W::zero()) + child_node_edge_weight;
+                                        node_map[grandchild_id]
+                                            .as_mut()
+                                            .unwrap()
+                                            .set_weight(Some(new_edge_weight));
                                         node.add_child(grandchild_id);
                                     }
                                 }
@@ -587,6 +597,7 @@ mod simple_rooted_tree {
                             _ => {
                                 // node has multiple children
                                 // for each child, suppress child if child is in remove list
+                                // dbg!(node.get_id(), node.is_leaf(), &node_children_ids);
                                 node_children_ids.into_iter().for_each(|chid| {
                                     if remove_list[chid] {
                                         // suppress chid
@@ -594,18 +605,28 @@ mod simple_rooted_tree {
                                         // children of chid are node grandchildren
                                         // add grandchildren to node children
                                         // set grandchildren parent to node
+                                        let chid_weight = self.get_node(chid).unwrap().get_weight().unwrap_or(W::zero());
                                         node.remove_child(&chid);
                                         let node_grandchildren = node_map[chid]
                                             .as_mut()
                                             .unwrap()
                                             .get_children()
                                             .collect_vec();
-                                        for grandchild in node_grandchildren {
-                                            node.add_child(grandchild);
-                                            node_map[grandchild]
+                                        for grandchild_id in node_grandchildren {
+                                            let new_edge_weight = node_map[grandchild_id]
+                                                .as_ref()
+                                                .unwrap()
+                                                .get_weight()
+                                                .unwrap_or(W::zero()) + chid_weight;
+                                            node.add_child(grandchild_id);
+                                            node_map[grandchild_id]
                                                 .as_mut()
                                                 .unwrap()
-                                                .set_parent(Some(node.get_id()))
+                                                .set_parent(Some(node.get_id()));
+                                            node_map[grandchild_id]
+                                                .as_mut()
+                                                .unwrap()
+                                                .set_weight(Some(new_edge_weight));
                                         }
                                     }
                                 });

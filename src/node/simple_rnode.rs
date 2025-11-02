@@ -67,14 +67,14 @@ where
 
     /// Adds NodeIDs from Iterator as children
     fn add_children(&mut self, children: impl Iterator<Item = Self::NodeID>) {
-        for child in children.into_iter() {
+        for child in children {
             self.add_child(child);
         }
     }
 
     /// Removes NodeIDs from Iterator from node children
     fn remove_children(&mut self, children: impl Iterator<Item = Self::NodeID>) {
-        for child in children.into_iter() {
+        for child in children {
             self.remove_child(&child);
         }
     }
