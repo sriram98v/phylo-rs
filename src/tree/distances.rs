@@ -315,13 +315,14 @@ where
     #[cfg(feature = "parallel")]
     /// Returns the vector norm for an iterator
     fn compute_norm_par(
-        vector: impl Iterator<Item = TreeNodeZeta<Self>>,
+        vector: Vec<TreeNodeZeta<Self>>,
         norm: u32,
     ) -> TreeNodeZeta<Self> {
         if norm == 1 {
-            return vector.map(|x| x.clone()).sum();
+            return vector.into_iter().map(|x| x.clone()).sum();
         }
         vector
+            .par_iter()
             .map(|x| {
                 x.clone().powi(norm as i32)
             })
@@ -369,9 +370,9 @@ where
         let binding2 = tree
             .get_taxa_space()
             .collect::<HashSet<&TreeNodeMeta<Self>>>();
-        let taxa_set = binding1.intersection(&binding2).cloned().map(|x| x.clone()).collect_vec();
+        let taxa_set = binding1.intersection(&binding2).cloned().collect_vec();
 
-        self.cophen_dist_by_taxa_par(tree, norm, taxa_set.iter())
+        self.cophen_dist_by_taxa_par(tree, norm, taxa_set.into_iter())
     }
 
     #[cfg(feature = "parallel")]
@@ -383,9 +384,9 @@ where
         taxa_set: impl Iterator<Item = &'a TreeNodeMeta<Self>> + Send,
     ) -> TreeNodeZeta<Self> {
         // let taxa_set = taxa_set.collect_vec();
-        let cophen_vec = taxa_set
+        let cophen_vec: Vec<TreeNodeZeta<Self>> = taxa_set
             .combinations_with_replacement(2)
-            .into_iter()
+            .par_bridge()
             .map(|x| match x[0] == x[1] {
                 true => {
                             let zeta_1 = self.get_zeta_taxa(x[0]);
@@ -407,8 +408,8 @@ where
                             let zeta_2 = tree.get_zeta(t_hat_lca_id).unwrap();
                             (zeta_1 - zeta_2).abs()
                         },
-            });
-            // .collect::<Vec<TreeNodeZeta<Self>>>();
+            })
+            .collect();
 
         Self::compute_norm_par(cophen_vec, norm)
     }

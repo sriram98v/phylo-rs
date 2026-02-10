@@ -78,7 +78,7 @@ where
             // remove root with only one child
             let node_id = node.get_id();
             if node.get_id() == self.get_root_id() && node.degree() < 2 {
-                let new_root = self.get_root().get_children().next().unwrap();
+                let new_root = self.get_root().get_children()[0];
                 self.set_root(new_root);
                 self.get_node_mut(self.get_root_id())
                     .unwrap()
@@ -88,7 +88,7 @@ where
             // remove nodes with only one child
             else if !node.is_leaf() && node.get_parent().is_some() && node.degree() < 3 {
                 let parent_id = self.get_node_parent_id(node_id);
-                let child_id = node.get_children().next().unwrap();
+                let child_id = node.get_children()[0];
                 self.get_node_mut(child_id).unwrap().set_parent(parent_id);
                 self.get_node_mut(parent_id.unwrap())
                     .unwrap()
@@ -96,7 +96,7 @@ where
                 self.remove_node(node.get_id());
             }
             // Removing dangling references to pruned children
-            for chid in node.get_children() {
+            for chid in node.get_children().iter().copied() {
                 if !self.get_nodes().map(|x| x.get_id()).contains(&chid) {
                     self.get_node_mut(node_id).unwrap().remove_child(&chid);
                 }
@@ -236,7 +236,7 @@ where
         node_id: TreeNodeID<Self>,
     ) -> impl ExactSizeIterator<Item = &'a Self::Node> {
         let node = self.get_node(node_id).unwrap();
-        node.get_children().map(|x| self.get_node(x).unwrap())
+        node.get_children().iter().map(|x| self.get_node(*x).unwrap()).collect_vec().into_iter()
     }
 
     /// Returns an iterator of node children ids
@@ -247,7 +247,7 @@ where
         self.get_node(node_id)
             .unwrap()
             .get_children()
-            .collect_vec()
+            .to_vec()
             .into_iter()
     }
 

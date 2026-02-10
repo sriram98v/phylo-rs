@@ -7,6 +7,7 @@ use crate::node::simple_rnode::{
     RootedMetaNode, RootedTreeNode, RootedWeightedNode, RootedZetaNode, EdgeWeight, NodeWeight, NodeTaxa
 };
 use std::fmt::{Debug, Display};
+use std::sync::Arc;
 
 /// Default NodeID type 
 pub type NodeID = usize;
@@ -19,6 +20,7 @@ pub type DemoNode = Node<u32,f32,f32>;
 
 /// A node structure in an arena-memory managed tree, linking to connected neighbours via NodeID
 #[derive(Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Node<T,W,Z> 
 where 
     T: NodeTaxa,
@@ -32,7 +34,7 @@ where
     /// Children of node
     children: Vec<NodeID>,
     /// Taxa annotation of node
-    taxa: Option<T>,
+    taxa: Option<Arc<T>>,
     /// Weight of edge ending in node
     weight: Option<W>,
     /// Real number annotation of node (used by some algorithms)
@@ -74,8 +76,8 @@ where
         self.parent
     }
 
-    fn get_children(&self) -> impl ExactSizeIterator<Item = Self::NodeID> + DoubleEndedIterator {
-        self.children.clone().into_iter()
+    fn get_children(&self) -> &[Self::NodeID] {
+        &self.children
     }
 
     fn add_child(&mut self, child: Self::NodeID) {
@@ -84,6 +86,23 @@ where
 
     fn remove_child(&mut self, child: &Self::NodeID) {
         self.children.retain(|x| x != child);
+    }
+}
+
+impl<T,W,Z> Node<T,W,Z>
+where
+    T: NodeTaxa,
+    W: EdgeWeight,
+    Z: NodeWeight,
+{
+    /// Returns a reference to the inner Arc for shared ownership with the taxa map.
+    pub(crate) fn get_taxa_arc(&self) -> Option<&Arc<T>> {
+        self.taxa.as_ref()
+    }
+
+    /// Sets the taxa field from a pre-built Arc, sharing ownership with the taxa map.
+    pub(crate) fn set_taxa_arc(&mut self, taxa: Option<Arc<T>>) {
+        self.taxa = taxa;
     }
 }
 
@@ -96,11 +115,11 @@ where
     type Meta = T;
 
     fn get_taxa<'a>(&'a self) -> Option<&'a Self::Meta> {
-        self.taxa.as_ref()
+        self.taxa.as_deref()
     }
 
     fn set_taxa(&mut self, taxa: Option<Self::Meta>) {
-        self.taxa = taxa;
+        self.taxa = taxa.map(Arc::new);
     }
 }
 

@@ -84,9 +84,9 @@ where
             None => None,
             Some(curr_node_id) => {
                 let curr_node = self.nodes[curr_node_id].take().unwrap();
-                curr_node
-                    .get_children()
-                    .for_each(|x| self.stack.push_back(x));
+                for &x in curr_node.get_children() {
+                    self.stack.push_back(x);
+                }
                 Some(curr_node)
             }
         }
@@ -103,9 +103,10 @@ where
 
     fn next(&mut self) -> Option<Self::Item> {
         while let Some(node) = self.stack.pop_front() {
-            let node_children = node
+            let node_children: Vec<&'a Node<T,W,Z>> = node
                 .get_children()
-                .filter_map(|chid| self.nodes[chid].take())
+                .iter()
+                .filter_map(|&chid| self.nodes[chid].take())
                 .collect_vec();
             if !node_children.is_empty() {
                 self.stack.push_front(node);
@@ -119,58 +120,3 @@ where
         None
     }
 }
-
-// pub struct LCA{
-//     /// Field to hold precomputed euler tour for constant-time LCA queries
-//     euler_traversal: Vec<NodeID>,
-//     /// Field to hold precomputed first-appearance for constant-time LCA queries
-//     first_appearance_index: Vec<Option<usize>>,
-//     /// Field to hold precomputed range-minimum-query for constant-time LCA queries
-//     range_min_query: BinaryRmq,
-// }
-
-// impl LCA{
-//     /// Creates new empty LCA map
-//     pub fn new<T: NodeTaxa,W: EdgeWeight,Z: NodeWeight>(tree: &SimpleRootedTree<T,W,Z>)->Self{
-//         // compute first-appearance index
-//         let max_id = tree.get_node_ids().max().unwrap();
-//         let mut index = vec![None; max_id + 1];
-//         match tree.get_precomputed_walk() {
-//             Some(walk) => {
-//                 for node_id in tree.get_node_ids() {
-//                     index[node_id] = Some(walk.iter().position(|x| x == &node_id).unwrap());
-//                 }
-//             }
-//             None => {
-//                 let walk = tree.euler_walk_ids(tree.get_root_id()).collect_vec();
-//                 for node_id in tree.get_node_ids() {
-//                     index[node_id] = Some(walk.iter().position(|x| x == &node_id).unwrap());
-//                 }
-//             }
-//         }
-//         let mut fai_vec = vec![None; max_id + 1];
-//         for id in tree.get_node_ids() {
-//             fai_vec[id] = index[id];
-//         }
-
-//         LCA { euler_traversal: vec![], first_appearance_index: fai_vec, range_min_query: BinaryRmq::from_vec(vec![]) }
-//     }
-
-//     pub fn get_lca_id(&self, node_id_vec: &[NodeID]) -> NodeID {
-//         if node_id_vec.len() == 1 {
-//             return node_id_vec[0];
-//         }
-//         let min_pos = node_id_vec
-//             .iter()
-//             .map(|x| self.first_appearance_index[*x].unwrap())
-//             .min()
-//             .unwrap();
-//         let max_pos = node_id_vec
-//             .iter()
-//             .map(|x| self.first_appearance_index[*x].unwrap())
-//             .max()
-//             .unwrap();
-
-//         self.euler_traversal[self.range_min_query.range_min(min_pos, max_pos)]
-//     }
-// }

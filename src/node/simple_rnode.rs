@@ -1,4 +1,3 @@
-use itertools::Itertools;
 use num::{Float, Signed, Zero};
 use std::{hash::Hash, marker::Sync, fmt::{Debug, Display}, str::FromStr, iter::Sum};
 
@@ -43,8 +42,8 @@ where
     /// Sets parent of node
     fn set_parent(&mut self, parent: Option<Self::NodeID>);
 
-    /// Returns Iterator containing children node ids
-    fn get_children(&self) -> impl ExactSizeIterator<Item = Self::NodeID> + DoubleEndedIterator;
+    /// Returns slice containing children node ids
+    fn get_children(&self) -> &[Self::NodeID];
 
     /// Add NodeID to node children
     fn add_child(&mut self, child: Self::NodeID);
@@ -54,7 +53,7 @@ where
 
     /// Checks if node is a leaf node
     fn is_leaf(&self) -> bool {
-        self.get_children().next().is_none()
+        self.get_children().is_empty()
     }
 
     /// Returns Node type as String
@@ -81,7 +80,7 @@ where
 
     /// Removes all children from node
     fn remove_all_children(&mut self) {
-        let children = self.get_children().collect_vec();
+        let children = self.get_children().to_vec();
         for child in children {
             self.remove_child(&child);
         }
@@ -89,7 +88,7 @@ where
 
     /// Returns number of children of the node.
     fn num_children(&self) -> usize {
-        self.get_children().collect::<Vec<Self::NodeID>>().len()
+        self.get_children().len()
     }
 
     /// Returns true if node as children.
@@ -107,7 +106,7 @@ where
 
     /// Returns ids of all nodes connected to self, including parent if exists.
     fn neighbours(&self) -> impl ExactSizeIterator<Item = Self::NodeID> {
-        let mut children = self.get_children().collect_vec();
+        let mut children = self.get_children().to_vec();
         if let Some(p) = self.get_parent() {
             children.push(p);
         }

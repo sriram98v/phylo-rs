@@ -1,6 +1,5 @@
 use phylo::node::PhyloNode;
 
-use itertools::Itertools;
 use phylo::node::simple_rnode::{RootedMetaNode, RootedTreeNode};
 
 #[test]
@@ -24,9 +23,9 @@ fn test_parent_childs() {
     let mut n = PhyloNode::new(0);
     n.add_child(10);
     n.add_child(20);
-    assert_eq!(n.get_children().collect_vec(), vec![10, 20]);
+    assert_eq!(n.get_children(), &[10, 20]);
     n.remove_child(&10);
-    assert_eq!(n.get_children().collect_vec(), vec![20]);
+    assert_eq!(n.get_children(), &[20]);
     n.set_parent(Some(10));
     assert_eq!(n.get_parent(), Some(10));
 }

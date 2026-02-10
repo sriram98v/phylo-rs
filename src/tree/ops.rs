@@ -1,4 +1,3 @@
-use itertools::Itertools;
 use std::{
     fmt::{Debug, Display},
     hash::Hash,
@@ -75,21 +74,24 @@ where
             IntoIter = impl ExactSizeIterator<Item = TreeNodeID<Self>>,
         >,
     ) -> Result<Self, ()> {
-        let mut subtree = self.clone();
-        subtree.clear();
+        let mut subtree = Self::new();
+        subtree.set_root(self.get_root_id());
+        subtree.set_node(self.get_root().clone());
         for node_id in node_id_list.into_iter() {
             let ancestors = self.root_to_node(node_id).cloned();
             subtree.set_nodes(ancestors);
         }
         subtree.clean();
-        Ok(subtree.clone())
+        Ok(subtree)
     }
 
     /// Returns subtree starting at provided node.
     fn subtree(&self, node_id: TreeNodeID<Self>) -> Result<Self, ()> {
-        let mut subtree = self.clone();
+        let mut subtree = Self::new();
+        subtree.set_root(node_id);
         let dfs = self.dfs(node_id).cloned();
         subtree.set_nodes(dfs);
+        subtree.get_node_mut(node_id).unwrap().set_parent(None);
         Ok(subtree)
     }
 }
@@ -116,14 +118,14 @@ pub trait ContractTree: EulerWalk + DFS {
                         }
                     }
                     false => {
-                        let node_children_ids = node.get_children().collect_vec();
+                        let node_children_ids = node.get_children().to_vec();
                         for child_id in &node_children_ids {
                             match node_map.contains_key(child_id) {
                                 true => {}
                                 false => node.remove_child(child_id),
                             }
                         }
-                        let node_children_ids = node.get_children().collect_vec();
+                        let node_children_ids = node.get_children().to_vec();
                         match node_children_ids.len() {
                             0 => {}
                             1 => {
@@ -138,7 +140,7 @@ pub trait ContractTree: EulerWalk + DFS {
                                         .get(&child_node_id)
                                         .unwrap()
                                         .get_children()
-                                        .collect_vec();
+                                        .to_vec();
                                     for grandchild_id in grandchildren_ids {
                                         node_map
                                             .get_mut(&grandchild_id)
@@ -165,7 +167,7 @@ pub trait ContractTree: EulerWalk + DFS {
                                             .get(&chid)
                                             .unwrap()
                                             .get_children()
-                                            .collect_vec();
+                                            .to_vec();
                                         for grandchild in node_grandchildren {
                                             node.add_child(grandchild);
                                             node_map
@@ -210,14 +212,14 @@ pub trait ContractTree: EulerWalk + DFS {
                     }
                 }
                 false => {
-                    let node_children_ids = node.get_children().collect_vec();
+                    let node_children_ids = node.get_children().to_vec();
                     for child_id in &node_children_ids {
                         match node_map.contains_key(child_id) {
                             true => {}
                             false => node.remove_child(child_id),
                         }
                     }
-                    let node_children_ids = node.get_children().collect_vec();
+                    let node_children_ids = node.get_children().to_vec();
                     match node_children_ids.len() {
                         0 => {}
                         1 => {
@@ -232,7 +234,7 @@ pub trait ContractTree: EulerWalk + DFS {
                                     .get(&child_node_id)
                                     .unwrap()
                                     .get_children()
-                                    .collect_vec();
+                                    .to_vec();
                                 for grandchild_id in grandchildren_ids {
                                     node_map
                                         .get_mut(&grandchild_id)
@@ -256,7 +258,7 @@ pub trait ContractTree: EulerWalk + DFS {
                                     // set grandchildren parent to node
                                     node.remove_child(&chid);
                                     let node_grandchildren =
-                                        node_map.get(&chid).unwrap().get_children().collect_vec();
+                                        node_map.get(&chid).unwrap().get_children().to_vec();
                                     for grandchild in node_grandchildren {
                                         node.add_child(grandchild);
                                         node_map

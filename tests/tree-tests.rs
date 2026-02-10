@@ -10,46 +10,7 @@ use std::fs::{File, read_to_string};
 use phylo::node::PhyloNode;
 use phylo::prelude::*;
 use phylo::tree::PhyloTree;
-#[cfg(feature = "parallel")]
-use indicatif::{ProgressIterator, ProgressBar, ProgressStyle};
-// #[cfg(feature = "parallel")]
 use std::io::Write;
-#[cfg(feature = "parallel")]
-use std::sync::Mutex;
-#[cfg(feature = "parallel")]
-use phylo::tree::DemoTree;
-
-#[test]
-#[cfg(feature = "parallel")]
-fn rf_set() {
-    let trees = (1..11).progress().map(|x| read_to_string(format!("/home/sriramv/Datasets/phylo-rs/time-trees/r{x}-preprocessed.trees"))
-            .unwrap()
-            .lines()
-            .enumerate()
-            .map(|(y,z)| (x,y,DemoTree::from_newick(z.as_bytes()).unwrap()))
-            .collect_vec()
-        )
-        .flatten()
-        .collect_vec();
-
-    let mut output_file =
-        File::create("/home/sriramv/Datasets/phylo-rs/study2.out").unwrap();
-
-    let file = Mutex::new(output_file);
-
-    let bar = ProgressBar::new((trees.len()*(trees.len()-1)/2) as u64);
-    bar.set_style(ProgressStyle::with_template("[{elapsed_precise}] {bar:40.cyan/blue} {pos:>7}/{len:7} {msg} [eta: {eta}]")
-    .unwrap()
-    .progress_chars("##-"));
-
-    trees.iter().combinations(2).par_bridge().map(|v| (v[0], v[1])).for_each(|(x,y)| {
-        let out = format!("{}-{}-{}-{}-{}\n", x.0, y.0, x.1, y.1, x.2.ca(&y.2));
-        file.lock().unwrap().write_all(out.as_bytes()).unwrap();
-        bar.inc(1);
-        // out
-    });
-    bar.finish();
-}
 
 #[test]
 fn pd() {
@@ -107,7 +68,7 @@ fn build_small_tree() {
     tree.add_child(2, new_node);
     dbg!(
         &tree,
-        tree.get_node(1).unwrap().get_children().collect_vec()
+        tree.get_node(1).unwrap().get_children()
     );
     dbg!(RootedTree::get_node_depth(&tree, 2));
     dbg!(&tree.to_newick().to_string());
@@ -130,7 +91,7 @@ fn tree_iter() {
     tree.add_child(5, new_node);
     let new_node = PhyloNode::new(7);
     tree.add_child(5, new_node);
-    dbg!(&tree.get_node(1).unwrap().get_children().collect_vec());
+    dbg!(&tree.get_node(1).unwrap().get_children());
     dbg!(&tree.dfs(tree.get_root_id()).collect_vec());
     dbg!(&tree.bfs_ids(tree.get_root_id()).collect_vec());
     dbg!(&tree.postord_ids(tree.get_root_id()).collect_vec());
@@ -236,7 +197,7 @@ fn induce_tree() {
     dbg!(format!("{}", &tree.to_newick()));
     let mut x = tree.induce_tree(vec![3, 5, 6]).unwrap();
     x.clean();
-    dbg!(x.get_root().get_children().collect_vec());
+    dbg!(x.get_root().get_children());
     dbg!(x.get_nodes().collect_vec());
     dbg!(format!("{}", &x.to_newick()));
 }
@@ -416,37 +377,64 @@ fn bipartitions() {
         .collect_vec();
 }
 
-// #[test]
-// #[cfg(feature = "parallel")]
-// fn compute_norm_parallel() {
-//     for norm in 1..10{
-//         let x = (1..1000).map(|x| x as f32).collect_vec();
-//         let y = x.clone();
-//         assert!((PhyloTree::compute_norm(x.into_iter(), norm)-PhyloTree::compute_norm_par(y.into_iter(), norm)).abs()<0.1);
-//     }
+#[test]
+#[cfg(feature = "parallel")]
+fn compute_norm_parallel() {
+    for norm in 1..10{
+        let x = (1..1000).map(|x| x as f32).collect_vec();
+        let y = x.clone();
+        assert!((PhyloTree::compute_norm(x.into_iter(), norm)-PhyloTree::compute_norm_par(y, norm)).abs()<0.1);
+    }
 
-//     let x = (1..3).combinations_with_replacement(2).collect_vec();
-//     let y = (1..3).combinations_with_replacement(2).par_bridge().map(|x| x[0]+x[1]).collect::<Vec<_>>();
+    let x = (1..3).combinations_with_replacement(2).collect_vec();
+    let y = (1..3).combinations_with_replacement(2).par_bridge().map(|x| x[0]+x[1]).collect::<Vec<_>>();
 
-//     dbg!(x, y);
-// }
+    dbg!(x, y);
+}
 
-// #[test]
-// #[cfg(feature = "parallel")]
-// fn cophenetic_dist_par() {
-//     fn depth(tree: &PhyloTree, node_id: usize) -> f32 {
-//         tree.depth(node_id) as f32
-//     }
-//     let t1_input_str: String = String::from("((A,B),C);");
-//     let t2_input_str: String = String::from("(A,(B,C));");
-//     let mut t1 = PhyloTree::from_newick(t1_input_str.as_bytes()).unwrap();
-//     let mut t2 = PhyloTree::from_newick(t2_input_str.as_bytes()).unwrap();
+#[test]
+#[cfg(feature = "serde")]
+fn serde_round_trip() {
+    let input_str = String::from("((A:0.1,B:0.2):0.3,(C:0.4,D:0.5):0.6);");
+    let tree = PhyloTree::from_newick(input_str.as_bytes()).unwrap();
 
-//     t1.precompute_constant_time_lca();
-//     t2.precompute_constant_time_lca();
+    let json = serde_json::to_string(&tree).unwrap();
+    let tree2: PhyloTree = serde_json::from_str(&json).unwrap();
 
-//     t1.set_zeta(depth).unwrap();
-//     t2.set_zeta(depth).unwrap();
+    // Same newick output
+    assert_eq!(tree.to_newick().to_string(), tree2.to_newick().to_string());
 
-//     assert_eq!(t1.cophen_dist_par(&t2, 1), 4_f32);
-// }
+    // Same taxa space
+    let mut taxa1: Vec<_> = tree.get_taxa_space().cloned().collect();
+    let mut taxa2: Vec<_> = tree2.get_taxa_space().cloned().collect();
+    taxa1.sort();
+    taxa2.sort();
+    assert_eq!(taxa1, taxa2);
+
+    // Same node count
+    assert_eq!(tree.num_nodes(), tree2.num_nodes());
+
+    // Taxa lookup still works after deserialization
+    assert!(tree2.get_taxa_node(&"A".to_string()).is_some());
+    assert!(tree2.get_taxa_node(&"D".to_string()).is_some());
+}
+
+#[test]
+#[cfg(feature = "parallel")]
+fn cophenetic_dist_par() {
+    fn depth(tree: &PhyloTree, node_id: usize) -> f32 {
+        tree.depth(node_id) as f32
+    }
+    let t1_input_str: String = String::from("((A,B),C);");
+    let t2_input_str: String = String::from("(A,(B,C));");
+    let mut t1 = PhyloTree::from_newick(t1_input_str.as_bytes()).unwrap();
+    let mut t2 = PhyloTree::from_newick(t2_input_str.as_bytes()).unwrap();
+
+    t1.precompute_constant_time_lca();
+    t2.precompute_constant_time_lca();
+
+    t1.set_zeta(depth).unwrap();
+    t2.set_zeta(depth).unwrap();
+
+    assert_eq!(t1.cophen_dist_par(&t2, 1), 4_f32);
+}

@@ -35,12 +35,12 @@ where
     ) -> impl ExactSizeIterator<Item = &'a Self::Node> {
         let mut stack = VecDeque::from([self.get_node(start_node_id).unwrap()]);
         let mut out_vec = vec![];
-        let mut visited = vec![];
+        let mut visited = HashSet::default();
         while let Some(x) = stack.pop_front() {
-            if !visited.contains(&x.get_id()) {
-                visited.push(x.get_id());
+            let id = x.get_id();
+            if visited.insert(id) {
                 out_vec.push(x);
-                for child_id in x.get_children().collect_vec().into_iter().rev() {
+                for &child_id in x.get_children().iter().rev() {
                     stack.push_front(self.get_node(child_id).unwrap());
                 }
             };
@@ -76,12 +76,12 @@ where
     ) -> impl ExactSizeIterator<Item = &'a Self::Node> {
         let mut stack = VecDeque::from([self.get_node(start_node_id).unwrap()]);
         let mut out_vec = vec![];
-        let mut visited = vec![];
+        let mut visited = HashSet::default();
         while let Some(x) = stack.pop_front() {
-            if !visited.contains(&x.get_id()) {
-                visited.push(x.get_id());
+            let id = x.get_id();
+            if visited.insert(id) {
                 out_vec.push(x);
-                for child_id in x.get_children().collect_vec().into_iter().rev() {
+                for &child_id in x.get_children().iter().rev() {
                     stack.push_front(self.get_node(child_id).unwrap());
                 }
             };
@@ -96,10 +96,9 @@ where
     ) -> impl ExactSizeIterator<Item = TreeNodeID<Self>> {
         let mut stack = VecDeque::from([start_node_id]);
         let mut out_vec = vec![];
-        let mut visited = vec![];
+        let mut visited = HashSet::default();
         while let Some(x) = stack.pop_front() {
-            if !visited.contains(&x) {
-                visited.push(x);
+            if visited.insert(x) {
                 out_vec.push(x);
                 for child_id in self
                     .get_node_children_ids(x)
@@ -242,22 +241,19 @@ where
         start_node_id: TreeNodeID<Self>,
     ) -> impl ExactSizeIterator<Item = &'a Self::Node> {
         let mut stack = VecDeque::from([self.get_node(start_node_id).unwrap()]);
-        let mut visited = vec![];
+        let mut visited = HashSet::default();
         let mut out_vec = vec![];
         while let Some(node) = stack.pop_front() {
-            match visited.contains(&node.get_id()) {
-                true => {
-                    if let Some(parent_id) = node.get_parent() {
-                        out_vec.push(self.get_node(parent_id).unwrap())
-                    }
+            let id = node.get_id();
+            if !visited.insert(id) {
+                if let Some(parent_id) = node.get_parent() {
+                    out_vec.push(self.get_node(parent_id).unwrap())
                 }
-                false => {
-                    visited.push(node.get_id());
-                    out_vec.push(node);
-                    stack.push_front(node);
-                    for child_id in node.get_children().rev() {
-                        stack.push_front(self.get_node(child_id).unwrap())
-                    }
+            } else {
+                out_vec.push(node);
+                stack.push_front(node);
+                for &child_id in node.get_children().iter().rev() {
+                    stack.push_front(self.get_node(child_id).unwrap())
                 }
             }
         }
@@ -270,27 +266,23 @@ where
         start_node_id: TreeNodeID<Self>,
     ) -> impl ExactSizeIterator<Item = TreeNodeID<Self>> {
         let mut stack = VecDeque::from([start_node_id]);
-        let mut visited = vec![];
+        let mut visited = HashSet::default();
         let mut out_vec = vec![];
         while let Some(node_id) = stack.pop_front() {
-            match visited.contains(&node_id) {
-                true => {
-                    if let Some(parent_id) = self.get_node_parent_id(node_id) {
-                        out_vec.push(parent_id)
-                    }
+            if !visited.insert(node_id) {
+                if let Some(parent_id) = self.get_node_parent_id(node_id) {
+                    out_vec.push(parent_id)
                 }
-                false => {
-                    visited.push(node_id);
-                    out_vec.push(node_id);
-                    stack.push_front(node_id);
-                    for child_id in self
-                        .get_node_children_ids(node_id)
-                        .collect_vec()
-                        .iter()
-                        .rev()
-                    {
-                        stack.push_front(*child_id)
-                    }
+            } else {
+                out_vec.push(node_id);
+                stack.push_front(node_id);
+                for child_id in self
+                    .get_node_children_ids(node_id)
+                    .collect_vec()
+                    .iter()
+                    .rev()
+                {
+                    stack.push_front(*child_id)
                 }
             }
         }
