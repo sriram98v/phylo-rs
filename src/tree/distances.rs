@@ -224,39 +224,55 @@ where
 {
     /// Returns Cluster Affinity cost from self to tree..
     fn ca(&self, tree: &Self) -> usize {
-        let tree_clusters = tree
-            .get_clusters_ids()
-            .map(|(id, cluster)| {
-                (
-                    id,
-                    cluster
-                        .map(|x| tree.get_node_taxa(x).unwrap())
-                        .collect::<HashSet<_>>(),
-                )
-            })
-            .collect::<HashMap<TreeNodeID<Self>, HashSet<_>>>();
-
-        let mut ca_cost = 0;
-
-        for (_, cluster) in self.get_clusters_ids().map(|(id, cluster)| {
-            (
-                id,
-                cluster
-                    .map(|x| self.get_node_taxa(x).unwrap())
-                    .collect::<HashSet<_>>(),
-            )
-        }) {
-            ca_cost += tree_clusters
-                .values()
-                .map(|t_cluster| {
-                    cluster.difference(t_cluster).collect_vec().len()
-                        + t_cluster.difference(&cluster).collect_vec().len()
-                })
-                .min()
-                .unwrap();
-        }
-
-        ca_cost
+    let mut dist = 0;
+    let mut t1_size_map: HashMap<TreeNodeID<Self>,usize> = [].into_iter().collect::<HashMap<_,_>>();
+    let mut t2_size_map: HashMap<TreeNodeID<Self>,usize> = [].into_iter().collect::<HashMap<_,_>>();
+    let mut intersection_map: HashMap<(TreeNodeID<Self>,TreeNodeID<Self>),usize> = [].into_iter().collect::<HashMap<_,_>>();
+    for v in self.postord_ids(self.get_root_id()){
+	let mut mindist = usize::MAX;
+	let vsize;
+	if self.is_leaf(v){
+	    vsize = 1;
+	}else{
+	    vsize = self.get_node_children_ids(v).map(|x| t1_size_map.get(&x).unwrap()).sum();
+	}
+	t1_size_map.insert(v,vsize);
+	for c in tree.postord_ids(tree.get_root_id()){
+	    let mut size = 0;
+	    let mut intersection = 0;
+	    if tree.is_leaf(c){
+		size = 1;
+		if self.is_leaf(v){
+		    if self.get_node_taxa(v).unwrap() == tree.get_node_taxa(c).unwrap(){
+			intersection = 1
+		    }
+		    else{
+			intersection = 0
+		    }
+		} else {
+		    for ch in self.get_node_children_ids(v) {
+			if *intersection_map.get(&(ch,c)).unwrap_or(&0) > 0 {
+			    intersection = 1;
+			    break;
+			}
+		    }
+		}
+	    } else {
+		for cch in tree.get_node_children_ids(c) {
+		    size += t2_size_map.get(&cch).unwrap();
+		    intersection += intersection_map.get(&(v,cch)).unwrap();
+		}
+	    }
+	    t2_size_map.insert(c,size);
+	    intersection_map.insert((v,c),intersection);
+	    let cdist = size + vsize - (2*intersection);
+	    if mindist > cdist{
+		mindist = cdist;
+	    }
+	}
+	dist += mindist
+    }
+    return dist;
     }
 }
 
