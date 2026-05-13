@@ -1216,4 +1216,87 @@ mod simple_rooted_tree {
             })
         }
     }
+
+    impl<T, W, Z> OLA for SimpleRootedTree<T, W, Z>
+    where
+        T: NodeTaxa,
+        W: EdgeWeight,
+        Z: NodeWeight,
+    {
+        /// Decodes an OLATree into a rooted binary tree.
+        ///
+        /// Leaf ordering σ is taken from `ola.taxa`: leaf l_j has index j.
+        /// Each `ola.indices[i-1]` identifies the sibling of l_i in the
+        /// restricted tree T^i — a non-negative value is a leaf index, a
+        /// negative value is an internal node index.
+        fn from_vec(ola: OLATree<T>) -> Self {
+            let n = ola.taxa.len();
+
+            if n == 0 {
+                return SimpleRootedTree::new(0);
+            }
+
+            // For a binary tree on n leaves: n leaves + n-1 internal nodes.
+            // Node ID assignment:
+            //   Leaf l_j          → NodeID j          (j = 0..n-1)
+            //   Internal node I_i → NodeID n + i - 1  (i = 1..n-1)
+            let capacity = if n > 1 { 2 * n - 1 } else { 1 };
+            let mut nodes: Vec<Option<Node<T, W, Z>>> = vec![None; capacity];
+
+            // Pre-create all leaf nodes (parents set during the loop below)
+            for j in 0..n {
+                nodes[j] = Some(Node::new(j));
+            }
+
+            // Build the tree structure by replaying the OLA construction
+            let mut root_id: NodeID = 0; // starts as just l₀
+
+            for i in 1..n {
+                let e = ola.indices[i - 1];
+
+                // Map OLA entry to the sibling's NodeID
+                let sibling_id: NodeID = if e >= 0 {
+                    e as NodeID
+                } else {
+                    // OLA index -k → internal node I_k → NodeID n + k - 1
+                    let k = (-e) as usize;
+                    n + k - 1
+                };
+
+                let internal_id: NodeID = n + i - 1;
+                let mut internal_node = Node::new(internal_id);
+
+                // Wire the new internal node in place of the sibling
+                match nodes[sibling_id].as_ref().unwrap().get_parent() {
+                    None => {
+                        // Sibling is the current root; internal becomes the new root
+                        root_id = internal_id;
+                    }
+                    Some(p_id) => {
+                        nodes[p_id].as_mut().unwrap().remove_child(&sibling_id);
+                        nodes[p_id].as_mut().unwrap().add_child(internal_id);
+                        internal_node.set_parent(Some(p_id));
+                    }
+                }
+
+                // Internal node's children: existing sibling and the new leaf l_i
+                internal_node.add_child(sibling_id);
+                internal_node.add_child(i);
+                nodes[sibling_id].as_mut().unwrap().set_parent(Some(internal_id));
+                nodes[i].as_mut().unwrap().set_parent(Some(internal_id));
+
+                nodes[internal_id] = Some(internal_node);
+            }
+
+            // Assemble the tree; taxa_node_id_map is populated below
+            let mut tree = SimpleRootedTree::from_nodes(nodes, root_id);
+
+            // Register taxa using set_node_taxa so that taxa_node_id_map is populated
+            for j in 0..n {
+                tree.set_node_taxa(j, Some(ola.taxa[j].clone()));
+            }
+
+            tree
+        }
+    }
 }

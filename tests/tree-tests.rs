@@ -438,3 +438,161 @@ fn cophenetic_dist_par() {
 
     assert_eq!(t1.cophen_dist_par(&t2, 1), 4_f32);
 }
+
+// ── OLA tests ──────────────────────────────────────────────────────────────
+
+/// Helper: parse a Newick string, call to_vec, return (taxa, indices).
+fn ola_encode(newick: &str) -> (Vec<String>, Vec<i64>) {
+    let tree = PhyloTree::from_newick(newick.as_bytes()).unwrap();
+    let ola = tree.to_vec();
+    (ola.taxa, ola.indices)
+}
+
+/// Helper: build an OLATree, decode with from_vec, then re-encode and return
+/// (taxa, indices) so we can compare against the original encoding.
+fn ola_roundtrip(taxa: Vec<&str>, indices: Vec<i64>) -> (Vec<String>, Vec<i64>) {
+    let ola_in = OLATree {
+        taxa: taxa.iter().map(|s| s.to_string()).collect(),
+        indices,
+    };
+    let decoded: PhyloTree = PhyloTree::from_vec(ola_in);
+    let ola_out = decoded.to_vec();
+    (ola_out.taxa, ola_out.indices)
+}
+
+// ── to_vec ──────────────────────────────────────────────────────────────────
+
+/// Right-leaning comb (A,(B,C)): sibling of each new leaf is always the
+/// immediately preceding leaf, so all entries are non-negative.
+#[test]
+fn ola_to_vec_right_comb() {
+    let (taxa, indices) = ola_encode("(A,(B,C));");
+    assert_eq!(taxa, vec!["A", "B", "C"]);
+    // i=1: sibling of B = A(0)
+    // i=2: sibling of C = B(1)
+    assert_eq!(indices, vec![0, 1]);
+}
+
+/// Left-leaning comb ((A,B),C): when the sibling is an internal node the
+/// entry is negative.
+#[test]
+fn ola_to_vec_left_comb() {
+    let (taxa, indices) = ola_encode("((A,B),C);");
+    assert_eq!(taxa, vec!["A", "B", "C"]);
+    // i=1: sibling of B = A(0)        → 0
+    // i=2: sibling of C = (A,B) node  → -max(μ(A)=0, μ(B)=1) = -1
+    assert_eq!(indices, vec![0, -1]);
+}
+
+/// Balanced 4-leaf tree ((A,B),(C,D)).
+#[test]
+fn ola_to_vec_balanced_4() {
+    let (taxa, indices) = ola_encode("((A,B),(C,D));");
+    assert_eq!(taxa, vec!["A", "B", "C", "D"]);
+    // i=1: sibling of B = A(0)           → 0
+    // i=2: sibling of C = (A,B) node     → -max(0,1) = -1
+    // i=3: sibling of D = C(2)           → 2
+    assert_eq!(indices, vec![0, -1, 2]);
+}
+
+/// Mixed tree ((A,B),(C,(D,E))): tests a deeper right subtree.
+#[test]
+fn ola_to_vec_mixed_5() {
+    let (taxa, indices) = ola_encode("((A,B),(C,(D,E)));");
+    assert_eq!(taxa, vec!["A", "B", "C", "D", "E"]);
+    // i=1: sibling B → A(0)                         → 0
+    // i=2: sibling C → (A,B): -max(0,1)             → -1
+    // i=3: sibling D → C(2)                         → 2
+    // i=4: sibling E → D(3)                         → 3
+    assert_eq!(indices, vec![0, -1, 2, 3]);
+}
+
+/// Balanced 6-leaf tree (((A,B),(C,D)),(E,F)): requires a 2-level internal
+/// node index computation.
+#[test]
+fn ola_to_vec_balanced_6() {
+    let (taxa, indices) = ola_encode("(((A,B),(C,D)),(E,F));");
+    assert_eq!(taxa, vec!["A", "B", "C", "D", "E", "F"]);
+    // i=1: B → A(0)                           → 0
+    // i=2: C → (A,B): -max(0,1)              → -1
+    // i=3: D → C(2)                           → 2
+    // i=4: E → ((A,B),(C,D)): sib=root of ABCD subtree
+    //       split by children of ABCD: AB side min=0, CD side min=2
+    //       -max(0,2)                          → -2
+    // i=5: F → E(4)                           → 4
+    assert_eq!(indices, vec![0, -1, 2, -2, 4]);
+}
+
+// ── from_vec ────────────────────────────────────────────────────────────────
+
+/// Decode a right-comb OLA vector and verify the resulting tree encodes back
+/// to the same OLA representation.
+#[test]
+fn ola_from_vec_right_comb() {
+    let (taxa_out, indices_out) = ola_roundtrip(vec!["A", "B", "C"], vec![0, 1]);
+    assert_eq!(taxa_out, vec!["A", "B", "C"]);
+    assert_eq!(indices_out, vec![0, 1]);
+}
+
+/// Decode a left-comb OLA vector and verify the roundtrip.
+#[test]
+fn ola_from_vec_left_comb() {
+    let (taxa_out, indices_out) = ola_roundtrip(vec!["A", "B", "C"], vec![0, -1]);
+    assert_eq!(taxa_out, vec!["A", "B", "C"]);
+    assert_eq!(indices_out, vec![0, -1]);
+}
+
+/// Decode a balanced 4-leaf tree and verify the roundtrip.
+#[test]
+fn ola_from_vec_balanced_4() {
+    let (taxa_out, indices_out) = ola_roundtrip(vec!["A", "B", "C", "D"], vec![0, -1, 2]);
+    assert_eq!(taxa_out, vec!["A", "B", "C", "D"]);
+    assert_eq!(indices_out, vec![0, -1, 2]);
+}
+
+/// Decode a 6-leaf tree with a 2-level internal node index and verify the
+/// roundtrip.
+#[test]
+fn ola_from_vec_balanced_6() {
+    let (taxa_out, indices_out) =
+        ola_roundtrip(vec!["A", "B", "C", "D", "E", "F"], vec![0, -1, 2, -2, 4]);
+    assert_eq!(taxa_out, vec!["A", "B", "C", "D", "E", "F"]);
+    assert_eq!(indices_out, vec![0, -1, 2, -2, 4]);
+}
+
+// ── roundtrip (Newick → to_vec → from_vec → to_vec) ────────────────────────
+
+/// For any tree T, to_vec(from_vec(to_vec(T))) must equal to_vec(T).
+#[test]
+fn ola_roundtrip_newick_3() {
+    for newick in &["((A,B),C);", "(A,(B,C));"] {
+        let tree = PhyloTree::from_newick(newick.as_bytes()).unwrap();
+        let ola1 = tree.to_vec();
+        let decoded: PhyloTree = PhyloTree::from_vec(OLATree {
+            taxa: ola1.taxa.clone(),
+            indices: ola1.indices.clone(),
+        });
+        let ola2 = decoded.to_vec();
+        assert_eq!(ola1.taxa, ola2.taxa, "taxa mismatch for {newick}");
+        assert_eq!(ola1.indices, ola2.indices, "indices mismatch for {newick}");
+    }
+}
+
+#[test]
+fn ola_roundtrip_newick_5() {
+    for newick in &[
+        "((A,B),(C,(D,E)));",
+        "(((A,B),C),(D,E));",
+        "(A,(B,(C,(D,E))));",
+    ] {
+        let tree = PhyloTree::from_newick(newick.as_bytes()).unwrap();
+        let ola1 = tree.to_vec();
+        let decoded: PhyloTree = PhyloTree::from_vec(OLATree {
+            taxa: ola1.taxa.clone(),
+            indices: ola1.indices.clone(),
+        });
+        let ola2 = decoded.to_vec();
+        assert_eq!(ola1.taxa, ola2.taxa, "taxa mismatch for {newick}");
+        assert_eq!(ola1.indices, ola2.indices, "indices mismatch for {newick}");
+    }
+}
