@@ -1,7 +1,21 @@
+//! Ancestral Sequence Reconstruction (ASR) module.
+//!
+//! This module provides tools for reconstructing ancestral states at internal nodes
+//! of a phylogenetic tree given observed sequences at the leaves.
+
+/// Alphabet definitions for ASR (e.g., Nucleotides, Amino Acids).
 pub mod alphabet;
+
+/// Likelihood profiles and scaling for numerical stability.
 pub mod profile;
+
+/// GTR (General Time Reversible) substitution models.
 pub mod gtr;
+
+/// Multiple sequence alignment handling and column compression.
 pub mod alignment;
+
+/// Core algorithms for marginal and joint ancestral reconstruction.
 pub mod reconstruction;
 
 #[cfg(test)]
