@@ -5,7 +5,6 @@ use itertools::Itertools;
 use std::fs::{File, read_to_string};
 use phylo::prelude::*;
 use indicatif::{ProgressBar, ProgressStyle};
-use phylo::tree::DemoTree;
 #[cfg(feature = "parallel")]
 use std::sync::Mutex;
 use std::io::Write;
@@ -43,7 +42,7 @@ fn main() {
             .unwrap()
             .lines()
             .enumerate()
-            .map(|(y,z)| (y,DemoTree::from_newick(z.as_bytes()).unwrap()))
+            .map(|(y,z)| (y,PhyloTree::from_newick(z.as_bytes()).unwrap()))
             .collect_vec();
 
     let mut output_file =

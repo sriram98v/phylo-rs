@@ -201,6 +201,8 @@ pub mod prelude {
     pub use crate::tree::simple_rtree::*;
     #[doc(no_inline)]
     pub use crate::tree::simulation::*;
+    #[doc(no_inline)]
+    pub use crate::tree::asr::*;
 
     #[cfg(feature = "simple_rooted_tree")]
     pub use crate::tree::{SimpleRootedTree, PhyloTree};

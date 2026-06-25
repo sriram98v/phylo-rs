@@ -1,6 +1,8 @@
 #![allow(clippy::needless_lifetimes)]
 /// Module with traits and structs for distance computation
 pub mod distances;
+/// Module with traits and structs for ancestral sequence reconstruction
+pub mod asr;
 /// Module with traits and structs for tree encoding
 pub mod io;
 /// Module with traits and structs for tree operations
@@ -34,11 +36,31 @@ mod simple_rooted_tree {
     #[cfg(not(feature = "non_crypto_hash"))]
     use std::collections::HashMap;
 
+    use crate::tree::asr::{MarginalAsr, JointAsr};
+
     /// Type alias for Phylogenetic tree.
     pub type PhyloTree = SimpleRootedTree<String,f32,f32>;
 
-    /// For demoing algorithms
-    pub type DemoTree = SimpleRootedTree<u32,f32,f32>;
+    impl MarginalAsr for PhyloTree {
+        fn marginal_asr<A: Alphabet>(
+            &self,
+            model: &GtrModel<A>,
+            aln: &Alignment,
+            want_posteriors: bool,
+        ) -> Result<Reconstruction<A>, AsrError> {
+            crate::tree::asr::compute_marginal_asr(self, model, aln, want_posteriors)
+        }
+    }
+
+    impl JointAsr for PhyloTree {
+        fn joint_asr<A: Alphabet>(
+            &self,
+            model: &GtrModel<A>,
+            aln: &Alignment,
+        ) -> Result<Reconstruction<A>, AsrError> {
+            crate::tree::asr::compute_joint_asr(self, model, aln)
+        }
+    }
 
     /// Precomputed data structures for constant-time LCA queries.
     /// Can be created, used, and dropped independently of the tree.
