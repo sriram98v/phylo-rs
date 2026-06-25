@@ -11,11 +11,11 @@ use std::io::Write;
 
 #[cfg(feature = "parallel")]
 fn main() {
-    let trees = read_to_string(format!("examples/pairwise-distances/sample-trees.trees"))
+    let trees = read_to_string("examples/pairwise-distances/sample-trees.trees")
             .unwrap()
             .lines()
             .enumerate()
-            .map(|(y,z)| (y,DemoTree::from_newick(z.as_bytes()).unwrap()))
+            .map(|(y,z)| (y,PhyloTree::from_newick(z.as_bytes()).unwrap()))
             .collect_vec();
 
     let output_file =
