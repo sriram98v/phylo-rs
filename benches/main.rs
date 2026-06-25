@@ -32,7 +32,7 @@ fn benchmark_constant_time_lca(bencher: divan::Bencher, taxa_size: usize) {
             (lca_map, leaves)
         })
         .bench_refs(|(lca_map, leaves)| {
-            lca_map[leaves[0]][leaves[1]];
+            let _ = lca_map[leaves[0]][leaves[1]];
         });
 }
 
@@ -64,7 +64,7 @@ fn benchmark_spr(bencher: divan::Bencher, taxa_size: usize) {
             let leaf_edges = tree.get_leaf_ids().map(|l_id| (tree.get_node_parent_id(l_id).unwrap(), l_id)).collect_vec();
             let e1 = leaf_edges[0];
             let e2 = leaf_edges[1];
-            return (tree, e1, e2);
+            (tree, e1, e2)
         })
         .bench_refs(|(t, e1, e2)| {
             let _ = t.spr(*e1, *e2);
@@ -102,7 +102,7 @@ fn benchmark_rf(bencher: divan::Bencher, taxa_size: usize) {
             (t1,t2)
         })
         .bench_refs(|(t1, t2)| {
-            let _ = t1.rf(&t2);
+            let _ = t1.rf(t2);
         });
 }
 
@@ -116,7 +116,7 @@ fn benchmark_cm(bencher: divan::Bencher, taxa_size: usize) {
             (t1,t2)
         })
         .bench_refs(|(t1, t2)| {
-            let _ = t1.cm(&t2);
+            let _ = t1.cm(t2);
         });
 }
 
@@ -124,8 +124,8 @@ fn benchmark_cm(bencher: divan::Bencher, taxa_size: usize) {
 fn benchmark_bps(bencher: divan::Bencher, taxa_size: usize) {
     bencher
         .with_inputs(|| {
-            let t1 = PhyloTree::yule(taxa_size);
-            t1
+            
+            PhyloTree::yule(taxa_size)
         })
         .bench_refs(|t1| {
             let _ = t1.get_bipartitions_ids().map(|(c1,c2)| (c1.map(|x| t1.get_node_taxa(x).unwrap()).collect_vec(), c2.map(|x| t1.get_node_taxa(x).unwrap()).collect_vec())).collect_vec();
@@ -136,8 +136,8 @@ fn benchmark_bps(bencher: divan::Bencher, taxa_size: usize) {
 fn benchmark_postord_ids(bencher: divan::Bencher, taxa_size: usize) {
     bencher
         .with_inputs(|| {
-            let t1 = PhyloTree::yule(taxa_size);
-            t1
+            
+            PhyloTree::yule(taxa_size)
         })
         .bench_refs(|t1| {
             let _ = t1.postord_ids(t1.get_root_id()).collect_vec();
@@ -198,8 +198,8 @@ fn new_contract_nodes(bencher: divan::Bencher, taxa_size: usize){
 fn benchmark_median_node(bencher: divan::Bencher, taxa_size: usize) {
     bencher
         .with_inputs(|| {
-            let t1 = PhyloTree::yule(taxa_size);
-            t1
+            
+            PhyloTree::yule(taxa_size)
         })
         .bench_refs(|t1| {
             let _ = t1.get_median_node();

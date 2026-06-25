@@ -16,8 +16,8 @@ impl Alignment {
         let mut current_id = String::new();
         let mut current_seq = Vec::new();
 
-        let mut lines = data.split(|&b| b == b'\n');
-        while let Some(line) = lines.next() {
+        let lines = data.split(|&b| b == b'\n');
+        for line in lines {
             let line = line.trim_ascii();
             if line.is_empty() {
                 continue;

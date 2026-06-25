@@ -13,7 +13,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let mut rng = thread_rng();
 
-    let mut tree = PhyloTree::from_newick(&input_str.as_bytes())?;
+    let mut tree = PhyloTree::from_newick(input_str.as_bytes())?;
     let taxa_set = tree.get_leaf_ids().collect::<Vec<_>>();
     let ntaxa = taxa_set.len();
     let taxa_subset = taxa_set

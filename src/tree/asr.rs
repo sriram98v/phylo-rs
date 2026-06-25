@@ -117,9 +117,9 @@ where
                 let mut sum_log_scale = 0.0;
 
                 for c in tree.get_node_children_ids(*v) {
-                    let prof_c = profiles.get(&c).ok_or_else(|| AsrError::NumericalInstability)?;
+                    let prof_c = profiles.get(&c).ok_or(AsrError::NumericalInstability)?;
                     let weight = tree.get_edge_weight(*v, c)
-                        .and_then(|w| NumCast::from(w))
+                        .and_then(NumCast::from)
                         .unwrap_or(0.0);
                     let p_t = model.transition(weight);
 
@@ -162,14 +162,14 @@ where
                 let post_p = node_posteriors.get(&p).unwrap();
 
                 let weight = tree.get_edge_weight(p, *v)
-                    .and_then(|w| NumCast::from(w))
+                    .and_then(NumCast::from)
                     .unwrap_or(0.0);
                 let p_t = model.transition(weight);
 
                 let post_p_vec = DVector::from_vec(post_p.clone());
                 let msg_vec = p_t.transpose() * post_p_vec;
 
-                let prof_v = profiles.get(&*v).unwrap();
+                let prof_v = profiles.get(v).unwrap();
                 let mut post_v = vec![0.0; n_states];
                 let mut sum = 0.0;
                 for i in 0..n_states {
@@ -252,10 +252,10 @@ where
                 let mut c_v = vec![0.0; n_states];
                 for c in tree.get_node_children_ids(*v) {
                     let weight = tree.get_edge_weight(*v, c)
-                        .and_then(|w| NumCast::from(w))
+                        .and_then(NumCast::from)
                         .unwrap_or(0.0);
                     let p_t = model.transition(weight);
-                    let c_c = c_values.get(&c).ok_or_else(|| AsrError::NumericalInstability)?;
+                    let c_c = c_values.get(&c).ok_or(AsrError::NumericalInstability)?;
 
                     let mut current_ptrs = vec![0; n_states];
 

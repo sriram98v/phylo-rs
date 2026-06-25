@@ -1,5 +1,5 @@
-/// Integration tests for ancestral sequence reconstruction, adapted from treetime test suite.
-/// Reference: https://github.com/neherlab/treetime/blob/master/test/test_treetime.py
+//! Integration tests for ancestral sequence reconstruction, adapted from treetime test suite.
+//! Reference: https://github.com/neherlab/treetime/blob/master/test/test_treetime.py
 
 use std::collections::HashMap;
 use crate::node::NodeID;
@@ -292,7 +292,7 @@ fn test_compression_identical_columns() {
 #[test]
 fn test_reconstruction_sequence_string() {
     let mut seqs = HashMap::new();
-    seqs.insert(0_usize.into(), vec![0, 1, 2, 3]); // ACGT
+    seqs.insert(0_usize, vec![0, 1, 2, 3]); // ACGT
 
     let recon: Reconstruction<Nucleotide> = Reconstruction {
         sequences: seqs.clone(),
@@ -301,8 +301,8 @@ fn test_reconstruction_sequence_string() {
         alphabet: std::marker::PhantomData,
     };
 
-    assert_eq!(recon.sequence_string(0_usize.into()), Some("ACGT".to_string()));
-    assert_eq!(recon.sequence_string(99_usize.into()), None);
+    assert_eq!(recon.sequence_string(0_usize), Some("ACGT".to_string()));
+    assert_eq!(recon.sequence_string(99_usize), None);
 }
 
 // ===========================================================================

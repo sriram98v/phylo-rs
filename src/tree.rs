@@ -1266,6 +1266,7 @@ mod simple_rooted_tree {
             let mut nodes: Vec<Option<Node<T, W, Z>>> = vec![None; capacity];
 
             // Pre-create all leaf nodes (parents set during the loop below)
+            #[allow(clippy::needless_range_loop)]
             for j in 0..n {
                 nodes[j] = Some(Node::new(j));
             }
@@ -1314,6 +1315,7 @@ mod simple_rooted_tree {
             let mut tree = SimpleRootedTree::from_nodes(nodes, root_id);
 
             // Register taxa using set_node_taxa so that taxa_node_id_map is populated
+            #[allow(clippy::needless_range_loop)]
             for j in 0..n {
                 tree.set_node_taxa(j, Some(ola.taxa[j].clone()));
             }

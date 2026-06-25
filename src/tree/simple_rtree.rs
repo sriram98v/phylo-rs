@@ -96,9 +96,9 @@ where
                 self.remove_node(node.get_id());
             }
             // Removing dangling references to pruned children
-            for chid in node.get_children().iter().copied() {
-                if !self.get_nodes().map(|x| x.get_id()).contains(&chid) {
-                    self.get_node_mut(node_id).unwrap().remove_child(&chid);
+            for chid in node.get_children() {
+                if !self.get_nodes().map(|x| x.get_id()).contains(chid) {
+                    self.get_node_mut(node_id).unwrap().remove_child(chid);
                 }
             }
         }

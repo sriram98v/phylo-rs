@@ -9,7 +9,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let input_str: String = fs::read_to_string(args[1].clone())?;
 
-    let tree = PhyloTree::from_newick(&input_str.as_bytes())?;
+    let tree = PhyloTree::from_newick(input_str.as_bytes())?;
     let ntaxa = tree.num_taxa();
     let now = Instant::now();
 

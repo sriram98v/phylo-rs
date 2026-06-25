@@ -230,12 +230,11 @@ where
     let mut intersection_map: HashMap<(TreeNodeID<Self>,TreeNodeID<Self>),usize> = [].into_iter().collect::<HashMap<_,_>>();
     for v in self.postord_ids(self.get_root_id()){
 	let mut mindist = usize::MAX;
-	let vsize;
-	if self.is_leaf(v){
-	    vsize = 1;
+	let vsize = if self.is_leaf(v){
+	    1
 	}else{
-	    vsize = self.get_node_children_ids(v).map(|x| t1_size_map.get(&x).unwrap()).sum();
-	}
+	    self.get_node_children_ids(v).map(|x| t1_size_map.get(&x).unwrap()).sum()
+	};
 	t1_size_map.insert(v,vsize);
 	for c in tree.postord_ids(tree.get_root_id()){
 	    let mut size = 0;
@@ -272,7 +271,7 @@ where
 	}
 	dist += mindist
     }
-    return dist;
+    dist
     }
 }
 
@@ -335,12 +334,12 @@ where
         norm: u32,
     ) -> TreeNodeZeta<Self> {
         if norm == 1 {
-            return vector.into_iter().map(|x| x.clone()).sum();
+            return vector.into_iter().sum();
         }
         vector
             .par_iter()
             .map(|x| {
-                x.clone().powi(norm as i32)
+                (*x).powi(norm as i32)
             })
             .sum::<TreeNodeZeta<Self>>()
             .powf(
