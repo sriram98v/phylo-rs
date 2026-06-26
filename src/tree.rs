@@ -34,7 +34,7 @@ mod simple_rooted_tree {
     #[cfg(feature = "non_crypto_hash")]
     use fxhash::{FxHashMap as HashMap, FxHashSet as HashSet};
     #[cfg(not(feature = "non_crypto_hash"))]
-    use std::collections::HashMap;
+    use std::collections::{HashMap, HashSet};
 
     use crate::tree::asr::{MarginalAsr, JointAsr};
 

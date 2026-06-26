@@ -35,7 +35,7 @@ where
     ) -> impl ExactSizeIterator<Item = &'a Self::Node> {
         let mut stack = VecDeque::from([self.get_node(start_node_id).unwrap()]);
         let mut out_vec = vec![];
-        let mut visited = HashSet::default();
+        let mut visited: HashSet<TreeNodeID<Self>> = HashSet::default();
         while let Some(x) = stack.pop_front() {
             let id = x.get_id();
             if visited.insert(id) {
@@ -76,7 +76,7 @@ where
     ) -> impl ExactSizeIterator<Item = &'a Self::Node> {
         let mut stack = VecDeque::from([self.get_node(start_node_id).unwrap()]);
         let mut out_vec = vec![];
-        let mut visited = HashSet::default();
+        let mut visited: HashSet<TreeNodeID<Self>> = HashSet::default();
         while let Some(x) = stack.pop_front() {
             let id = x.get_id();
             if visited.insert(id) {
@@ -96,7 +96,7 @@ where
     ) -> impl ExactSizeIterator<Item = TreeNodeID<Self>> {
         let mut stack = VecDeque::from([start_node_id]);
         let mut out_vec = vec![];
-        let mut visited = HashSet::default();
+        let mut visited: HashSet<TreeNodeID<Self>> = HashSet::default();
         while let Some(x) = stack.pop_front() {
             if visited.insert(x) {
                 out_vec.push(x);
@@ -241,7 +241,7 @@ where
         start_node_id: TreeNodeID<Self>,
     ) -> impl ExactSizeIterator<Item = &'a Self::Node> {
         let mut stack = VecDeque::from([self.get_node(start_node_id).unwrap()]);
-        let mut visited = HashSet::default();
+        let mut visited: HashSet<TreeNodeID<Self>> = HashSet::default();
         let mut out_vec = vec![];
         while let Some(node) = stack.pop_front() {
             let id = node.get_id();
@@ -266,7 +266,7 @@ where
         start_node_id: TreeNodeID<Self>,
     ) -> impl ExactSizeIterator<Item = TreeNodeID<Self>> {
         let mut stack = VecDeque::from([start_node_id]);
-        let mut visited = HashSet::default();
+        let mut visited: HashSet<TreeNodeID<Self>> = HashSet::default();
         let mut out_vec = vec![];
         while let Some(node_id) = stack.pop_front() {
             if !visited.insert(node_id) {

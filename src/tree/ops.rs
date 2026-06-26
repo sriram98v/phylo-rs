@@ -110,7 +110,7 @@ pub trait ContractTree: EulerWalk + DFS {
     ) -> impl Iterator<Item = Self::Node> {
         let mut node_map: HashMap<TreeNodeID<Self>, Self::Node> =
             HashMap::from_iter(vec![(new_tree_root_id, self.get_lca(leaf_ids).clone())]);
-        let mut remove_list = HashSet::from_iter(vec![]);
+        let mut remove_list: HashSet<TreeNodeID<Self>> = HashSet::from_iter(vec![]);
         node_iter
             .map(|x| self.get_node(x).cloned().unwrap())
             .for_each(|mut node| {
