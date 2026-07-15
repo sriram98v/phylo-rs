@@ -1,0 +1,10 @@
+# Revisions to skip when running git blame.
+#
+# Enable locally with:
+#   git config blame.ignoreRevsFile .git-blame-ignore-revs
+#
+# GitHub honours this file automatically. Only add commits that are purely
+# mechanical (formatting, renames) and change no behaviour.
+
+# style: apply rustfmt across codebase
+a73baff9dca6a3214aebdc8dfa0600f17d89510f
