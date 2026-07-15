@@ -15,10 +15,15 @@ cargo build
 cargo test
 ```
 
-The minimum supported Rust version is **1.80**, declared as `rust-version` in
-`Cargo.toml` and checked by CI. Day-to-day development happens on stable — the
-test suite needs 1.85 or newer, because `proptest` does. The lower MSRV is a
-promise to people who *use* the library, who never build our dev-dependencies.
+The minimum supported Rust version is **1.87**, declared as `rust-version` in
+`Cargo.toml` and checked by CI against a freshly resolved dependency tree.
+Day-to-day development happens on stable.
+
+Note that 1.87 is imposed by dependencies, not by this crate: the library
+itself compiles on 1.80. `vers-vecs` declares no `rust-version` of its own, so
+cargo cannot filter it by MSRV and it resolves to the newest `1.x`, which
+currently needs 1.87. If that dependency raises its requirements again, the
+`Check MSRV` CI job will fail and `rust-version` needs to move with it.
 
 ## Development commands
 

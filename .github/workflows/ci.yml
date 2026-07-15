@@ -27,5 +27,10 @@ jobs:
       # Keep in step with rust-version in Cargo.toml. `check` rather than
       # `test`: rust-version is a promise to consumers, who build the library
       # but never compile the dev-dependencies.
-      - run: rustup toolchain install 1.80 --profile minimal && rustup default 1.80
+      #
+      # Deliberately no lockfile: resolving fresh is what a new consumer gets,
+      # and it is the only way this job can catch a dependency raising our
+      # effective MSRV. vers-vecs declares no rust-version, so cargo's
+      # MSRV-aware resolver cannot filter it and it floats to the newest 1.x.
+      - run: rustup toolchain install 1.87 --profile minimal && rustup default 1.87
       - run: cargo check --all-features
