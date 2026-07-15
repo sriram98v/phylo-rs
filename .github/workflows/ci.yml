@@ -13,7 +13,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: rustup update stable && rustup default stable
-      - run: rustup component add clippy
+      - run: rustup component add clippy rustfmt
+      - run: cargo fmt --all --check
       - run: cargo clippy --all-targets --all-features
       - run: cargo build
       - run: cargo test
