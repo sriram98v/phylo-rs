@@ -1,0 +1,8 @@
+# Code owners for phylo-rs.
+#
+# main requires a code owner review, so every pull request needs an approval
+# from an owner listed here. Ownership is repo-wide.
+#
+# Syntax: https://docs.github.com/articles/about-code-owners
+
+* @sriram98v
