@@ -1,5 +1,5 @@
 use itertools::Itertools;
-use num::{Zero, Float, NumCast, One};
+use num::{Float, NumCast, One, Zero};
 use std::fmt::Debug;
 use vers_vecs::BitVec;
 
@@ -94,7 +94,6 @@ where
             .map(|x| (x.1, x.0))
             .collect();
 
-
         let mut self_bps: HashMap<TreeNodeID<Self>, BitVec> = vec![].into_iter().collect();
         let mut self_out_bps: HashSet<BitVec> = vec![].into_iter().collect();
         for n_id in self.postord_ids(self.get_root_id()) {
@@ -106,24 +105,24 @@ where
                     bp.flip_bit(*all_taxa_map.get(leaf_meta).unwrap());
 
                     let _ = bp_rev.apply_mask_xor(&bp);
-                    self_bps.insert(n_id, bp.clone());  
+                    self_bps.insert(n_id, bp.clone());
                     self_out_bps.insert(bp);
                     self_out_bps.insert(bp_rev);
                 }
                 false => {
-                    if n_id==self.get_root_id(){
+                    if n_id == self.get_root_id() {
                         continue;
-                    }
-                    else{
+                    } else {
                         self.get_node_children_ids(n_id)
                             .map(|x| self_bps.get(&x).unwrap())
-                            .for_each(|x| {let _ = bp.apply_mask_or(x);});
+                            .for_each(|x| {
+                                let _ = bp.apply_mask_or(x);
+                            });
 
                         let _ = bp_rev.apply_mask_xor(&bp);
                         self_bps.insert(n_id, bp.clone());
                         self_out_bps.insert(bp);
                         self_out_bps.insert(bp_rev);
-                        
                     }
                 }
             };
@@ -147,13 +146,14 @@ where
                     tree_out_bps.insert(bp_rev);
                 }
                 false => {
-                    if n_id==tree.get_root_id(){
+                    if n_id == tree.get_root_id() {
                         continue;
-                    }
-                    else {
+                    } else {
                         tree.get_node_children_ids(n_id)
-                        .map(|x| tree_bps.get(&x).unwrap())
-                        .for_each(|x| {let _ = bp.apply_mask_or(x);});    
+                            .map(|x| tree_bps.get(&x).unwrap())
+                            .for_each(|x| {
+                                let _ = bp.apply_mask_or(x);
+                            });
 
                         let _ = bp_rev.apply_mask_xor(&bp);
 
@@ -165,24 +165,21 @@ where
             };
         }
         for i in self_out_bps.iter() {
-            if tree_out_bps.contains(i){
-                continue;                
-            }
-            else{
+            if tree_out_bps.contains(i) {
+                continue;
+            } else {
                 dist += 1;
             }
         }
         for i in tree_out_bps.iter() {
-            if self_out_bps.contains(i){
-                continue;                
-            }
-            else{
+            if self_out_bps.contains(i) {
+                continue;
+            } else {
                 dist += 1;
             }
-
         }
-        
-        dist/2
+
+        dist / 2
     }
 }
 
@@ -224,54 +221,58 @@ where
 {
     /// Returns Cluster Affinity cost from self to tree..
     fn ca(&self, tree: &Self) -> usize {
-    let mut dist = 0;
-    let mut t1_size_map: HashMap<TreeNodeID<Self>,usize> = [].into_iter().collect::<HashMap<_,_>>();
-    let mut t2_size_map: HashMap<TreeNodeID<Self>,usize> = [].into_iter().collect::<HashMap<_,_>>();
-    let mut intersection_map: HashMap<(TreeNodeID<Self>,TreeNodeID<Self>),usize> = [].into_iter().collect::<HashMap<_,_>>();
-    for v in self.postord_ids(self.get_root_id()){
-	let mut mindist = usize::MAX;
-	let vsize = if self.is_leaf(v){
-	    1
-	}else{
-	    self.get_node_children_ids(v).map(|x| t1_size_map.get(&x).unwrap()).sum()
-	};
-	t1_size_map.insert(v,vsize);
-	for c in tree.postord_ids(tree.get_root_id()){
-	    let mut size = 0;
-	    let mut intersection = 0;
-	    if tree.is_leaf(c){
-		size = 1;
-		if self.is_leaf(v){
-		    if self.get_node_taxa(v).unwrap() == tree.get_node_taxa(c).unwrap(){
-			intersection = 1
-		    }
-		    else{
-			intersection = 0
-		    }
-		} else {
-		    for ch in self.get_node_children_ids(v) {
-			if *intersection_map.get(&(ch,c)).unwrap_or(&0) > 0 {
-			    intersection = 1;
-			    break;
-			}
-		    }
-		}
-	    } else {
-		for cch in tree.get_node_children_ids(c) {
-		    size += t2_size_map.get(&cch).unwrap();
-		    intersection += intersection_map.get(&(v,cch)).unwrap();
-		}
-	    }
-	    t2_size_map.insert(c,size);
-	    intersection_map.insert((v,c),intersection);
-	    let cdist = size + vsize - (2*intersection);
-	    if mindist > cdist{
-		mindist = cdist;
-	    }
-	}
-	dist += mindist
-    }
-    dist
+        let mut dist = 0;
+        let mut t1_size_map: HashMap<TreeNodeID<Self>, usize> =
+            [].into_iter().collect::<HashMap<_, _>>();
+        let mut t2_size_map: HashMap<TreeNodeID<Self>, usize> =
+            [].into_iter().collect::<HashMap<_, _>>();
+        let mut intersection_map: HashMap<(TreeNodeID<Self>, TreeNodeID<Self>), usize> =
+            [].into_iter().collect::<HashMap<_, _>>();
+        for v in self.postord_ids(self.get_root_id()) {
+            let mut mindist = usize::MAX;
+            let vsize = if self.is_leaf(v) {
+                1
+            } else {
+                self.get_node_children_ids(v)
+                    .map(|x| t1_size_map.get(&x).unwrap())
+                    .sum()
+            };
+            t1_size_map.insert(v, vsize);
+            for c in tree.postord_ids(tree.get_root_id()) {
+                let mut size = 0;
+                let mut intersection = 0;
+                if tree.is_leaf(c) {
+                    size = 1;
+                    if self.is_leaf(v) {
+                        if self.get_node_taxa(v).unwrap() == tree.get_node_taxa(c).unwrap() {
+                            intersection = 1
+                        } else {
+                            intersection = 0
+                        }
+                    } else {
+                        for ch in self.get_node_children_ids(v) {
+                            if *intersection_map.get(&(ch, c)).unwrap_or(&0) > 0 {
+                                intersection = 1;
+                                break;
+                            }
+                        }
+                    }
+                } else {
+                    for cch in tree.get_node_children_ids(c) {
+                        size += t2_size_map.get(&cch).unwrap();
+                        intersection += intersection_map.get(&(v, cch)).unwrap();
+                    }
+                }
+                t2_size_map.insert(c, size);
+                intersection_map.insert((v, c), intersection);
+                let cdist = size + vsize - (2 * intersection);
+                if mindist > cdist {
+                    mindist = cdist;
+                }
+            }
+            dist += mindist
+        }
+        dist
     }
 }
 
@@ -293,10 +294,7 @@ where
     TreeNodeZeta<Self>: NodeWeight,
 {
     /// Returns zeta of leaf by taxa
-    fn get_zeta_taxa(
-        &self,
-        taxa: &TreeNodeMeta<Self>,
-    ) -> TreeNodeZeta<Self> {
+    fn get_zeta_taxa(&self, taxa: &TreeNodeMeta<Self>) -> TreeNodeZeta<Self> {
         self.get_zeta(self.get_taxa_node_id(taxa).unwrap()).unwrap()
     }
 
@@ -305,7 +303,7 @@ where
         vector: impl Iterator<Item = TreeNodeZeta<Self>>,
         norm: u32,
     ) -> TreeNodeZeta<Self> {
-        if norm==0{
+        if norm == 0 {
             return vector.fold(<TreeNodeZeta<Self>>::zero(), |acc, x| acc.max(x));
         }
         if norm == 1 {
@@ -313,9 +311,9 @@ where
         }
         vector
             .map(|x| {
-            let mut out = <TreeNodeZeta<Self>>::one();
-                for _ in 0..norm{
-                    out = out* x;
+                let mut out = <TreeNodeZeta<Self>>::one();
+                for _ in 0..norm {
+                    out = out * x;
                 }
                 out
             })
@@ -329,18 +327,13 @@ where
 
     #[cfg(feature = "parallel")]
     /// Returns the vector norm for an iterator
-    fn compute_norm_par(
-        vector: Vec<TreeNodeZeta<Self>>,
-        norm: u32,
-    ) -> TreeNodeZeta<Self> {
+    fn compute_norm_par(vector: Vec<TreeNodeZeta<Self>>, norm: u32) -> TreeNodeZeta<Self> {
         if norm == 1 {
             return vector.into_iter().sum();
         }
         vector
             .par_iter()
-            .map(|x| {
-                (*x).powi(norm as i32)
-            })
+            .map(|x| (*x).powi(norm as i32))
             .sum::<TreeNodeZeta<Self>>()
             .powf(
                 <TreeNodeZeta<Self> as NumCast>::from(norm)
@@ -350,11 +343,7 @@ where
     }
 
     /// Reurns the cophenetic distance between two trees using the naive algorithm (\Theta(n^2))
-    fn cophen_dist<'a>(
-        &'a self,
-        tree: &'a Self,
-        norm: u32,
-    ) -> TreeNodeZeta<Self> {
+    fn cophen_dist<'a>(&'a self, tree: &'a Self, norm: u32) -> TreeNodeZeta<Self> {
         if !self.is_all_zeta_set() || !tree.is_all_zeta_set() {
             panic!("Zeta values not set");
         }
@@ -371,11 +360,7 @@ where
 
     #[cfg(feature = "parallel")]
     /// Returns the cophenetic distance between two trees using the naive algorithm (\Theta(n^2))
-    fn cophen_dist_par<'a>(
-        &'a self,
-        tree: &'a Self,
-        norm: u32,
-    ) -> TreeNodeZeta<Self> {
+    fn cophen_dist_par<'a>(&'a self, tree: &'a Self, norm: u32) -> TreeNodeZeta<Self> {
         if !self.is_all_zeta_set() || !tree.is_all_zeta_set() {
             panic!("Zeta values not set");
         }
@@ -404,25 +389,25 @@ where
             .par_bridge()
             .map(|x| match x[0] == x[1] {
                 true => {
-                            let zeta_1 = self.get_zeta_taxa(x[0]);
-                            let zeta_2 = tree.get_zeta_taxa(x[0]);
-                            (zeta_1 - zeta_2).abs()
-                        },
+                    let zeta_1 = self.get_zeta_taxa(x[0]);
+                    let zeta_2 = tree.get_zeta_taxa(x[0]);
+                    (zeta_1 - zeta_2).abs()
+                }
                 false => {
-                            let self_ids = x
-                                .iter()
-                                .map(|a| self.get_taxa_node_id(a).unwrap())
-                                .collect_vec();
-                            let tree_ids = x
-                                .iter()
-                                .map(|a| tree.get_taxa_node_id(a).unwrap())
-                                .collect_vec();
-                            let t_lca_id = self.get_lca_id(self_ids.as_slice());
-                            let t_hat_lca_id = tree.get_lca_id(tree_ids.as_slice());
-                            let zeta_1 = self.get_zeta(t_lca_id).unwrap();
-                            let zeta_2 = tree.get_zeta(t_hat_lca_id).unwrap();
-                            (zeta_1 - zeta_2).abs()
-                        },
+                    let self_ids = x
+                        .iter()
+                        .map(|a| self.get_taxa_node_id(a).unwrap())
+                        .collect_vec();
+                    let tree_ids = x
+                        .iter()
+                        .map(|a| tree.get_taxa_node_id(a).unwrap())
+                        .collect_vec();
+                    let t_lca_id = self.get_lca_id(self_ids.as_slice());
+                    let t_hat_lca_id = tree.get_lca_id(tree_ids.as_slice());
+                    let zeta_1 = self.get_zeta(t_lca_id).unwrap();
+                    let zeta_2 = tree.get_zeta(t_hat_lca_id).unwrap();
+                    (zeta_1 - zeta_2).abs()
+                }
             })
             .collect();
 
@@ -442,25 +427,25 @@ where
             .combinations_with_replacement(2)
             .map(|x| match x[0] == x[1] {
                 true => {
-                            let zeta_1 = self.get_zeta_taxa(x[0]);
-                            let zeta_2 = tree.get_zeta_taxa(x[0]);
-                            (zeta_1 - zeta_2).abs()
-                        },
+                    let zeta_1 = self.get_zeta_taxa(x[0]);
+                    let zeta_2 = tree.get_zeta_taxa(x[0]);
+                    (zeta_1 - zeta_2).abs()
+                }
                 false => {
-                            let self_ids = x
-                                .iter()
-                                .map(|a| self.get_taxa_node_id(a).unwrap())
-                                .collect_vec();
-                            let tree_ids = x
-                                .iter()
-                                .map(|a| tree.get_taxa_node_id(a).unwrap())
-                                .collect_vec();
-                            let t_lca_id = self.get_lca_id(self_ids.as_slice());
-                            let t_hat_lca_id = tree.get_lca_id(tree_ids.as_slice());
-                            let zeta_1 = self.get_zeta(t_lca_id).unwrap();
-                            let zeta_2 = tree.get_zeta(t_hat_lca_id).unwrap();
-                            (zeta_1 - zeta_2).abs()
-                        },
+                    let self_ids = x
+                        .iter()
+                        .map(|a| self.get_taxa_node_id(a).unwrap())
+                        .collect_vec();
+                    let tree_ids = x
+                        .iter()
+                        .map(|a| tree.get_taxa_node_id(a).unwrap())
+                        .collect_vec();
+                    let t_lca_id = self.get_lca_id(self_ids.as_slice());
+                    let t_hat_lca_id = tree.get_lca_id(tree_ids.as_slice());
+                    let zeta_1 = self.get_zeta(t_lca_id).unwrap();
+                    let zeta_2 = tree.get_zeta(t_hat_lca_id).unwrap();
+                    (zeta_1 - zeta_2).abs()
+                }
             });
 
         Self::compute_norm(cophen_vec, norm)

@@ -53,10 +53,10 @@ impl Alphabet for Nucleotide {
             b'W' => Some(vec![0.5, 0.0, 0.0, 0.5]), // A, T
             b'K' => Some(vec![0.0, 0.0, 0.5, 0.5]), // G, T
             b'M' => Some(vec![0.5, 0.5, 0.0, 0.0]), // A, C
-            b'B' => Some(vec![0.0, 1.0/3.0, 1.0/3.0, 1.0/3.0]), // C, G, T
-            b'D' => Some(vec![1.0/3.0, 0.0, 1.0/3.0, 1.0/3.0]), // A, G, T
-            b'H' => Some(vec![1.0/3.0, 1.0/3.0, 0.0, 1.0/3.0]), // A, C, T
-            b'V' => Some(vec![1.0/3.0, 1.0/3.0, 1.0/3.0, 0.0]), // A, C, G
+            b'B' => Some(vec![0.0, 1.0 / 3.0, 1.0 / 3.0, 1.0 / 3.0]), // C, G, T
+            b'D' => Some(vec![1.0 / 3.0, 0.0, 1.0 / 3.0, 1.0 / 3.0]), // A, G, T
+            b'H' => Some(vec![1.0 / 3.0, 1.0 / 3.0, 0.0, 1.0 / 3.0]), // A, C, T
+            b'V' => Some(vec![1.0 / 3.0, 1.0 / 3.0, 1.0 / 3.0, 0.0]), // A, C, G
             b'N' => Some(vec![0.25, 0.25, 0.25, 0.25]),
             Self::GAP => Some(vec![1.0; 4]),
             _ => None,
@@ -88,19 +88,22 @@ impl Alphabet for AminoAcid {
             return Some(p);
         }
         match c {
-            b'B' => { // Aspartic acid (D) or Asparagine (N)
+            b'B' => {
+                // Aspartic acid (D) or Asparagine (N)
                 let mut p = vec![0.0; 20];
                 p[3] = 0.5; // D
                 p[11] = 0.5; // N
                 Some(p)
             }
-            b'Z' => { // Glutamic acid (E) or Glutamine (Q)
+            b'Z' => {
+                // Glutamic acid (E) or Glutamine (Q)
                 let mut p = vec![0.0; 20];
                 p[4] = 0.5; // E
                 p[14] = 0.5; // Q
                 Some(p)
             }
-            b'J' => { // Isoleucine (I) or Leucine (L)
+            b'J' => {
+                // Isoleucine (I) or Leucine (L)
                 let mut p = vec![0.0; 20];
                 p[8] = 0.5; // I
                 p[9] = 0.5; // L

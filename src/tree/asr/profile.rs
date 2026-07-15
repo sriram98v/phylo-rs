@@ -18,7 +18,11 @@ impl Profile {
     /// Normalizes the profile by dividing by the maximum value and adding the log of that max
     /// to the log_scale. This is the standard "scaling" approach in phylogenetic ML.
     pub fn scale(mut self) -> Self {
-        let max_val = self.values.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+        let max_val = self
+            .values
+            .iter()
+            .copied()
+            .fold(f64::NEG_INFINITY, f64::max);
 
         if max_val <= 0.0 {
             // All zero or negative; nothing to scale, but we keep the structure

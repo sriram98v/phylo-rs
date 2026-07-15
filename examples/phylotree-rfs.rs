@@ -1,8 +1,7 @@
-use std::{fs, env};
+use phylotree::tree::Tree;
 use std::error::Error;
 use std::time::Instant;
-use phylotree::tree::Tree;
-
+use std::{env, fs};
 
 fn main() -> Result<(), Box<dyn Error>> {
     let args = env::args().collect::<Vec<_>>();
@@ -20,7 +19,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let elapsed = now.elapsed();
 
     println!("{:?}", &rf);
-    
+
     println!("Internal time: {:.7?}", elapsed.as_secs_f64());
 
     Ok(())

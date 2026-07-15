@@ -1,8 +1,7 @@
-use std::{fs, env};
+use phylotree::tree::Tree;
 use std::error::Error;
 use std::time::Instant;
-use phylotree::tree::Tree;
-
+use std::{env, fs};
 
 fn main() -> Result<(), Box<dyn Error>> {
     let args = env::args().collect::<Vec<_>>();
@@ -12,11 +11,12 @@ fn main() -> Result<(), Box<dyn Error>> {
     let tree: Tree = Tree::from_newick(&input_str)?;
     let now = Instant::now();
 
-    let ancestor = tree.get_common_ancestor(
-        &tree.get_by_name("Tip10").unwrap().id,
-        &tree.get_by_name("Tip20").unwrap().id,
-    ).unwrap();
-    
+    let ancestor = tree
+        .get_common_ancestor(
+            &tree.get_by_name("Tip10").unwrap().id,
+            &tree.get_by_name("Tip20").unwrap().id,
+        )
+        .unwrap();
 
     let elapsed = now.elapsed();
     println!("{:?}", &ancestor);

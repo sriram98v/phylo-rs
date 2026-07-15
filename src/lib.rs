@@ -94,7 +94,7 @@
 //!
 //! # Examples
 //! The following snippets are code examples of some phylogenetic analyses. You can find these in the `examples` directory of the repository
-//! 
+//!
 //! ## Quantifying Phylogenetic Diversity
 //! Quantifying the Phylogenetic Diveristy of a set of trees using the Faith Index:
 //! ```ignore
@@ -102,12 +102,12 @@
 //! use fxhash::FxHashMap as HashMap;
 //! #[cfg(not(feature = "non_crypto_hash"))]
 //! use std::collections::HashMap;
-//! 
+//!
 //! use itertools::Itertools;
 //! use std::fs::{File, read_to_string};
 //! use phylo::prelude::*;
 //! use std::io::Write;
-//! 
+//!
 //! fn main() {
 //!     let paths: HashMap<_, _> = std::fs::read_dir("examples/phylogenetic-diversity/trees")
 //!        .unwrap()
@@ -123,7 +123,7 @@
 //!            let tree = trees.get(&year.to_string());
 //!            match tree{
 //!                Some(t) => {
-//!                    println!("{}: {}", year, t.get_nodes().map(|n| n.get_weight().unwrap_or(0.0)).sum::<f32>()); 
+//!                    println!("{}: {}", year, t.get_nodes().map(|n| n.get_weight().unwrap_or(0.0)).sum::<f32>());
 //!                    pds.push(t.get_nodes().map(|n| n.get_weight().unwrap_or(0.0)).sum::<f32>());
 //!                },
 //!                _ => {println!("{}: {}", year, 0.0); pds.push(0.0);},
@@ -139,13 +139,13 @@
 //! use fxhash::FxHashMap as HashMap;
 //! #[cfg(not(feature = "non_crypto_hash"))]
 //! use std::collections::HashMap;
-//! 
+//!
 //! use itertools::Itertools;
 //! use std::fs::{File, read_to_string};
 //! use phylo::prelude::*;
 //! use std::io::Write;
 //! use indicatif::{ProgressIterator, ProgressBar, ProgressStyle};
-//! 
+//!
 //! fn main() {
 //!     let trees = (1..11).progress().map(|x| read_to_string(format!("examples/pairwise-distances/sample-trees.trees"))
 //!             .unwrap()
@@ -171,8 +171,8 @@
 //!     bar.finish();
 //! }
 //! ```
-//! 
-//! 
+//!
+//!
 
 /// Module with errors.
 pub mod error;
@@ -192,6 +192,8 @@ pub mod prelude {
     #[doc(no_inline)]
     pub use crate::node::{simple_rnode::*, Node, PhyloNode};
     #[doc(no_inline)]
+    pub use crate::tree::asr::*;
+    #[doc(no_inline)]
     pub use crate::tree::distances::*;
     #[doc(no_inline)]
     pub use crate::tree::io::*;
@@ -201,9 +203,7 @@ pub mod prelude {
     pub use crate::tree::simple_rtree::*;
     #[doc(no_inline)]
     pub use crate::tree::simulation::*;
-    #[doc(no_inline)]
-    pub use crate::tree::asr::*;
 
     #[cfg(feature = "simple_rooted_tree")]
-    pub use crate::tree::{SimpleRootedTree, PhyloTree};
+    pub use crate::tree::{PhyloTree, SimpleRootedTree};
 }

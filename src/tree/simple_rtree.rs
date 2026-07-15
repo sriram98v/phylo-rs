@@ -2,7 +2,6 @@ use crate::node::simple_rnode::*;
 use itertools::Itertools;
 use std::fmt::Debug;
 
-
 /// A type alias for Tree Node ID
 pub type TreeNodeID<T> = <<T as RootedTree>::Node as RootedTreeNode>::NodeID;
 /// A type alias for Tree Node meta annotation
@@ -116,10 +115,7 @@ where
     }
 
     /// Inserts nodes into tree from iterator. Note: this will overwrite any existing node with a NodeID that already exists in tree.
-    fn set_nodes(
-        &mut self,
-        node_list: impl Iterator<Item = Self::Node>,
-    ) {
+    fn set_nodes(&mut self, node_list: impl Iterator<Item = Self::Node>) {
         for node in node_list {
             self.set_node(node);
         }
@@ -236,7 +232,11 @@ where
         node_id: TreeNodeID<Self>,
     ) -> impl ExactSizeIterator<Item = &'a Self::Node> {
         let node = self.get_node(node_id).unwrap();
-        node.get_children().iter().map(|x| self.get_node(*x).unwrap()).collect_vec().into_iter()
+        node.get_children()
+            .iter()
+            .map(|x| self.get_node(*x).unwrap())
+            .collect_vec()
+            .into_iter()
     }
 
     /// Returns an iterator of node children ids
@@ -299,8 +299,7 @@ where
         let parent_id = self
             .get_node_parent_id(node_id)
             .expect("Node has no siblings!");
-        self
-            .get_node_children(parent_id)
+        self.get_node_children(parent_id)
             .filter(move |x| x.get_id() != node_id)
     }
 
@@ -332,14 +331,14 @@ where
     }
 
     /// Create new empty tree
-    fn new()->Self;
+    fn new() -> Self;
 
     /// Create new empty tree with given capacity. The capacity is the number of vertices in the tree. More memory may be allocated according to the underlying allocation strategy.
-    fn with_capacity(cap: usize)->Self;
+    fn with_capacity(cap: usize) -> Self;
 
     /// Create new tree from given vertices.
     /// <div class="warning">This does not check for loops. If the nodes induce an edge, it will break downstream analysis!</div>
-    fn from_nodes(nodes: Vec<Option<Self::Node>>, root_id: TreeNodeID<Self>)->Self;
+    fn from_nodes(nodes: Vec<Option<Self::Node>>, root_id: TreeNodeID<Self>) -> Self;
 
     /// Supresses all nodes of degree 2
     fn supress_unifurcations<'a>(&'a mut self);

@@ -4,25 +4,26 @@
 pub mod simple_rnode;
 
 use crate::node::simple_rnode::{
-    RootedMetaNode, RootedTreeNode, RootedWeightedNode, RootedZetaNode, EdgeWeight, NodeWeight, NodeTaxa
+    EdgeWeight, NodeTaxa, NodeWeight, RootedMetaNode, RootedTreeNode, RootedWeightedNode,
+    RootedZetaNode,
 };
 use std::fmt::{Debug, Display};
 use std::sync::Arc;
 
-/// Default NodeID type 
+/// Default NodeID type
 pub type NodeID = usize;
 
-/// Default NodeID type 
-pub type PhyloNode = Node<String,f32,f32>;
+/// Default NodeID type
+pub type PhyloNode = Node<String, f32, f32>;
 
-/// Default NodeID type 
-pub type DemoNode = Node<u32,f32,f32>;
+/// Default NodeID type
+pub type DemoNode = Node<u32, f32, f32>;
 
 /// A node structure in an arena-memory managed tree, linking to connected neighbours via NodeID
 #[derive(Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct Node<T,W,Z> 
-where 
+pub struct Node<T, W, Z>
+where
     T: NodeTaxa,
     W: EdgeWeight,
     Z: NodeWeight,
@@ -41,8 +42,8 @@ where
     zeta: Option<Z>,
 }
 
-impl<T,W,Z> RootedTreeNode for Node<T,W,Z> 
-where 
+impl<T, W, Z> RootedTreeNode for Node<T, W, Z>
+where
     T: NodeTaxa,
     W: EdgeWeight,
     Z: NodeWeight,
@@ -89,7 +90,7 @@ where
     }
 }
 
-impl<T,W,Z> Node<T,W,Z>
+impl<T, W, Z> Node<T, W, Z>
 where
     T: NodeTaxa,
     W: EdgeWeight,
@@ -106,8 +107,8 @@ where
     }
 }
 
-impl<T,W,Z> RootedMetaNode for Node<T,W,Z> 
-where 
+impl<T, W, Z> RootedMetaNode for Node<T, W, Z>
+where
     T: NodeTaxa,
     W: EdgeWeight,
     Z: NodeWeight,
@@ -123,8 +124,8 @@ where
     }
 }
 
-impl<T,W,Z> RootedWeightedNode for Node<T,W,Z> 
-where 
+impl<T, W, Z> RootedWeightedNode for Node<T, W, Z>
+where
     T: NodeTaxa,
     W: EdgeWeight,
     Z: NodeWeight,
@@ -140,8 +141,8 @@ where
     }
 }
 
-impl<T,W,Z> RootedZetaNode for Node<T,W,Z> 
-where 
+impl<T, W, Z> RootedZetaNode for Node<T, W, Z>
+where
     T: NodeTaxa,
     W: EdgeWeight,
     Z: NodeWeight,
@@ -157,8 +158,8 @@ where
     }
 }
 
-impl<T,W,Z> Debug for Node<T,W,Z> 
-where 
+impl<T, W, Z> Debug for Node<T, W, Z>
+where
     T: NodeTaxa,
     W: EdgeWeight,
     Z: NodeWeight,
@@ -185,8 +186,8 @@ where
     }
 }
 
-impl<T,W,Z> Display for Node<T,W,Z> 
-where 
+impl<T, W, Z> Display for Node<T, W, Z>
+where
     T: NodeTaxa,
     W: EdgeWeight,
     Z: NodeWeight,

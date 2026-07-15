@@ -1,5 +1,5 @@
-use std::collections::HashMap;
 use crate::node::NodeID;
+use std::collections::HashMap;
 
 /// The result of an ancestral sequence reconstruction.
 pub struct Reconstruction<A> {

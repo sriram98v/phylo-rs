@@ -166,11 +166,8 @@ pub trait ContractTree: EulerWalk + DFS {
                                         // add grandchildren to node children
                                         // set grandchildren parent to node
                                         node.remove_child(&chid);
-                                        let node_grandchildren = node_map
-                                            .get(&chid)
-                                            .unwrap()
-                                            .get_children()
-                                            .to_vec();
+                                        let node_grandchildren =
+                                            node_map.get(&chid).unwrap().get_children().to_vec();
                                         for grandchild in node_grandchildren {
                                             node.add_child(grandchild);
                                             node_map
@@ -405,6 +402,9 @@ where
             .map(|&id| self.get_node_taxa_cloned(id).unwrap())
             .collect();
 
-        OLATree { taxa, indices: ola_indices }
+        OLATree {
+            taxa,
+            indices: ola_indices,
+        }
     }
 }

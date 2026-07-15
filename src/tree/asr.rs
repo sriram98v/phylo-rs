@@ -21,19 +21,19 @@ pub mod reconstruction;
 #[cfg(test)]
 mod integration_test;
 
+pub use self::alignment::Alignment;
 pub use self::alphabet::Alphabet;
 pub use self::gtr::GtrModel;
-pub use self::alignment::Alignment;
 pub use self::reconstruction::Reconstruction;
 
-use std::collections::HashMap;
-use crate::prelude::*;
+use self::profile::Profile;
 use crate::error::AsrError;
 use crate::node::NodeID;
+use crate::prelude::*;
 use crate::tree::PhyloTree;
-use self::profile::Profile;
-use num_traits::NumCast;
 use nalgebra::DVector;
+use num_traits::NumCast;
+use std::collections::HashMap;
 
 /// Trait for performing marginal ancestral sequence reconstruction.
 pub trait MarginalAsr {
@@ -107,10 +107,14 @@ where
         for v in &postord {
             if tree.is_leaf(*v) {
                 let pos = leaf_id_map.iter().position(|&id| id == *v).ok_or_else(|| {
-                    AsrError::InvalidAlignment("Leaf in tree not found in alignment leaf order".to_string())
+                    AsrError::InvalidAlignment(
+                        "Leaf in tree not found in alignment leaf order".to_string(),
+                    )
                 })?;
                 let char_val = pattern[pos];
-                let prof_vals = A::profile(char_val).ok_or_else(|| AsrError::AlphabetMismatch("Invalid char in alignment".to_string()))?;
+                let prof_vals = A::profile(char_val).ok_or_else(|| {
+                    AsrError::AlphabetMismatch("Invalid char in alignment".to_string())
+                })?;
                 profiles.insert(*v, Profile::new(prof_vals, 0.0).scale());
             } else {
                 let mut v_vals = DVector::from_element(n_states, 1.0);
@@ -118,7 +122,8 @@ where
 
                 for c in tree.get_node_children_ids(*v) {
                     let prof_c = profiles.get(&c).ok_or(AsrError::NumericalInstability)?;
-                    let weight = tree.get_edge_weight(*v, c)
+                    let weight = tree
+                        .get_edge_weight(*v, c)
                         .and_then(NumCast::from)
                         .unwrap_or(0.0);
                     let p_t = model.transition(weight);
@@ -130,7 +135,10 @@ where
                     }
                     sum_log_scale += prof_c.log_scale;
                 }
-                profiles.insert(*v, Profile::new(v_vals.as_slice().to_vec(), sum_log_scale).scale());
+                profiles.insert(
+                    *v,
+                    Profile::new(v_vals.as_slice().to_vec(), sum_log_scale).scale(),
+                );
             }
         }
 
@@ -154,14 +162,17 @@ where
                     sum += post[i];
                 }
                 if sum > 0.0 {
-                    for val in &mut post { *val /= sum; }
+                    for val in &mut post {
+                        *val /= sum;
+                    }
                 }
                 node_posteriors.insert(*v, post);
             } else {
                 let p = tree.get_node_parent_id(*v).unwrap();
                 let post_p = node_posteriors.get(&p).unwrap();
 
-                let weight = tree.get_edge_weight(p, *v)
+                let weight = tree
+                    .get_edge_weight(p, *v)
                     .and_then(NumCast::from)
                     .unwrap_or(0.0);
                 let p_t = model.transition(weight);
@@ -177,14 +188,21 @@ where
                     sum += post_v[i];
                 }
                 if sum > 0.0 {
-                    for val in &mut post_v { *val /= sum; }
+                    for val in &mut post_v {
+                        *val /= sum;
+                    }
                 }
                 node_posteriors.insert(*v, post_v);
             }
         }
 
         for (v, post) in node_posteriors {
-            let best_state = post.iter().enumerate().max_by(|a, b| a.1.partial_cmp(b.1).unwrap()).unwrap().0;
+            let best_state = post
+                .iter()
+                .enumerate()
+                .max_by(|a, b| a.1.partial_cmp(b.1).unwrap())
+                .unwrap()
+                .0;
             for site in 0..aln.width {
                 if comp.site_to_pattern[site] == p_idx {
                     final_sequences.get_mut(&v).unwrap()[site] = best_state;
@@ -242,16 +260,23 @@ where
         for v in &postord {
             if tree.is_leaf(*v) {
                 let pos = leaf_id_map.iter().position(|&id| id == *v).ok_or_else(|| {
-                    AsrError::InvalidAlignment("Leaf in tree not found in alignment leaf order".to_string())
+                    AsrError::InvalidAlignment(
+                        "Leaf in tree not found in alignment leaf order".to_string(),
+                    )
                 })?;
                 let char_val = pattern[pos];
-                let prof = A::profile(char_val).ok_or_else(|| AsrError::AlphabetMismatch("Invalid char".to_string()))?;
-                let c_v = prof.iter().map(|&p| if p > 0.0 { p.ln() } else { f64::NEG_INFINITY }).collect();
+                let prof = A::profile(char_val)
+                    .ok_or_else(|| AsrError::AlphabetMismatch("Invalid char".to_string()))?;
+                let c_v = prof
+                    .iter()
+                    .map(|&p| if p > 0.0 { p.ln() } else { f64::NEG_INFINITY })
+                    .collect();
                 c_values.insert(*v, c_v);
             } else {
                 let mut c_v = vec![0.0; n_states];
                 for c in tree.get_node_children_ids(*v) {
-                    let weight = tree.get_edge_weight(*v, c)
+                    let weight = tree
+                        .get_edge_weight(*v, c)
                         .and_then(NumCast::from)
                         .unwrap_or(0.0);
                     let p_t = model.transition(weight);

@@ -1,14 +1,14 @@
 //! Integration tests for ancestral sequence reconstruction, adapted from treetime test suite.
 //! Reference: https://github.com/neherlab/treetime/blob/master/test/test_treetime.py
 
-use std::collections::HashMap;
 use crate::node::NodeID;
-use crate::tree::PhyloTree;
 use crate::prelude::*;
+use crate::tree::asr::alignment::Alignment;
 use crate::tree::asr::alphabet::{Alphabet, Nucleotide};
 use crate::tree::asr::gtr::GtrModel;
-use crate::tree::asr::alignment::Alignment;
 use crate::tree::asr::reconstruction::Reconstruction;
+use crate::tree::PhyloTree;
+use std::collections::HashMap;
 
 /// Build a simple 4-taxon tree from Newick: ((A:0.6,B:0.3)C:0.1,D:0.2)E:0.001
 fn build_tiny_tree() -> PhyloTree {
@@ -133,7 +133,13 @@ fn test_gtr_jc_row_sums_to_one() {
         let p_t = model.transition(t);
         for i in 0..4 {
             let sum: f64 = (0..4).map(|j| p_t[(i, j)]).sum();
-            assert!((sum - 1.0).abs() < 1e-10, "t={:.2} row {} sum = {}", t, i, sum);
+            assert!(
+                (sum - 1.0).abs() < 1e-10,
+                "t={:.2} row {} sum = {}",
+                t,
+                i,
+                sum
+            );
         }
     }
 }
@@ -145,7 +151,14 @@ fn test_gtr_jc_positive_entries() {
         let p_t = model.transition(t);
         for i in 0..4 {
             for j in 0..4 {
-                assert!(p_t[(i, j)] >= -1e-15, "Negative entry at t={}: ({},{}) = {}", t, i, j, p_t[(i,j)]);
+                assert!(
+                    p_t[(i, j)] >= -1e-15,
+                    "Negative entry at t={}: ({},{}) = {}",
+                    t,
+                    i,
+                    j,
+                    p_t[(i, j)]
+                );
             }
         }
     }
@@ -160,7 +173,14 @@ fn test_gtr_p_infinity_converges_to_pi() {
     for i in 0..4 {
         for j in 0..4 {
             let diff = (p_inf[(i, j)] - pi[j]).abs();
-            assert!(diff < 0.01, "t=100 ({},{}) expected {} got {}", i, j, pi[j], p_inf[(i,j)]);
+            assert!(
+                diff < 0.01,
+                "t=100 ({},{}) expected {} got {}",
+                i,
+                j,
+                pi[j],
+                p_inf[(i, j)]
+            );
         }
     }
 }
@@ -184,10 +204,19 @@ fn test_gtr_detailed_balance() {
         let p_t = model.transition(t);
 
         // For JC, pi is uniform so pi^T P(t) should equal pi
-        let result: Vec<f64> = (0..4usize).map(|j| (0..4usize).map(|i| pi[i] * p_t[(i, j)]).sum()).collect();
+        let result: Vec<f64> = (0..4usize)
+            .map(|j| (0..4usize).map(|i| pi[i] * p_t[(i, j)]).sum())
+            .collect();
 
         for j in 0..4 {
-            assert!((result[j] - pi[j]).abs() < 1e-8, "t={:.2} j={} expected {} got {}", t, j, pi[j], result[j]);
+            assert!(
+                (result[j] - pi[j]).abs() < 1e-8,
+                "t={:.2} j={} expected {} got {}",
+                t,
+                j,
+                pi[j],
+                result[j]
+            );
         }
     }
 }
@@ -274,7 +303,10 @@ fn test_alignment_fasta_whitespace_in_header() {
 fn test_compression_identical_columns() {
     let mut seqs = HashMap::new();
     seqs.insert("S1".to_string(), b"AATT".to_vec());
-    seqs.insert("S2".to_string(), "AAT T".replace(' ', "-").as_bytes().to_vec());
+    seqs.insert(
+        "S2".to_string(),
+        "AAT T".replace(' ', "-").as_bytes().to_vec(),
+    );
     let aln = Alignment { seqs, width: 4 };
 
     let comp = aln.compress_columns();
@@ -315,7 +347,8 @@ fn test_marginal_asr_basic() {
     let model = GtrModel::<Nucleotide>::jukes_cantor().unwrap();
 
     // All 4 taxa of the tree must be present
-    let aln_data = b">A\nACGTACGTACGTACGT\n>B\nAGGTAGGTAGGTAGGT\n>C\nACGTACGTACGTACGT\n>D\nTTTTTTTTTTTTTTTT\n";
+    let aln_data =
+        b">A\nACGTACGTACGTACGT\n>B\nAGGTAGGTAGGTAGGT\n>C\nACGTACGTACGTACGT\n>D\nTTTTTTTTTTTTTTTT\n";
     let aln = Alignment::from_fasta_bytes(aln_data).unwrap();
 
     let result = tree.marginal_asr::<Nucleotide>(&model, &aln, false);
@@ -329,7 +362,8 @@ fn test_marginal_asr_with_posteriors() {
     let tree = build_tiny_tree();
     let model = GtrModel::<Nucleotide>::jukes_cantor().unwrap();
 
-    let aln_data = b">A\nACGTACGTACGTACGT\n>B\nAGGTAGGTAGGTAGGT\n>C\nACGTACGTACGTACGT\n>D\nTTTTTTTTTTTTTTTT\n";
+    let aln_data =
+        b">A\nACGTACGTACGTACGT\n>B\nAGGTAGGTAGGTAGGT\n>C\nACGTACGTACGTACGT\n>D\nTTTTTTTTTTTTTTTT\n";
     let aln = Alignment::from_fasta_bytes(aln_data).unwrap();
 
     let result = tree.marginal_asr::<Nucleotide>(&model, &aln, true);
@@ -344,9 +378,13 @@ fn test_marginal_asr_with_posteriors() {
     for (node_id, site_posters) in &posters {
         for (site_idx, post) in site_posters.iter().enumerate() {
             let sum: f64 = post.iter().sum();
-            assert!(sum > 0.5 && sum < 1.5,
+            assert!(
+                sum > 0.5 && sum < 1.5,
                 "Node {} site {}: posterior sum = {} (expected ~1.0)",
-                node_id, site_idx, sum);
+                node_id,
+                site_idx,
+                sum
+            );
         }
     }
 }
@@ -374,7 +412,8 @@ fn test_joint_asr_basic() {
     let tree = build_tiny_tree();
     let model = GtrModel::<Nucleotide>::jukes_cantor().unwrap();
 
-    let aln_data = b">A\nACGTACGTACGTACGT\n>B\nAGGTAGGTAGGTAGGT\n>C\nACGTACGTACGTACGT\n>D\nTTTTTTTTTTTTTTTT\n";
+    let aln_data =
+        b">A\nACGTACGTACGTACGT\n>B\nAGGTAGGTAGGTAGGT\n>C\nACGTACGTACGTACGT\n>D\nTTTTTTTTTTTTTTTT\n";
     let aln = Alignment::from_fasta_bytes(aln_data).unwrap();
 
     let result = tree.joint_asr::<Nucleotide>(&model, &aln);
@@ -396,7 +435,9 @@ fn test_joint_vs_marginal_same_sequences_simple() {
     let aln_data = b">A\nAAAAAAAA\n>B\nAAAAAAAC\n>C\nAAAAAAAA\n>D\nCCCCCCCC\n";
     let aln = Alignment::from_fasta_bytes(aln_data).unwrap();
 
-    let marg_result = tree.marginal_asr::<Nucleotide>(&model, &aln, false).unwrap();
+    let marg_result = tree
+        .marginal_asr::<Nucleotide>(&model, &aln, false)
+        .unwrap();
     let joint_result = tree.joint_asr::<Nucleotide>(&model, &aln).unwrap();
 
     // Both should return sequences for all nodes
@@ -427,7 +468,11 @@ fn test_marginal_asr_likelihood_normalization() {
     let result = tree.marginal_asr::<Nucleotide>(&model, &aln, true);
     assert!(result.is_ok());
     let recon = result.unwrap();
-    assert!(recon.log_likelihood.is_finite(), "log_likelihood = {}", recon.log_likelihood);
+    assert!(
+        recon.log_likelihood.is_finite(),
+        "log_likelihood = {}",
+        recon.log_likelihood
+    );
 
     // Check that marginals for root sum to 1 per site (within tolerance)
     if let Some(ref posters) = recon.posteriors {
@@ -436,8 +481,12 @@ fn test_marginal_asr_likelihood_normalization() {
             assert_eq!(site_posters.len(), aln.width);
             for (site_idx, post) in site_posters.iter().enumerate() {
                 let sum: f64 = post.iter().sum();
-                assert!((sum - 1.0).abs() < 0.001,
-                    "Root posterior sum at site {} = {}", site_idx, sum);
+                assert!(
+                    (sum - 1.0).abs() < 0.001,
+                    "Root posterior sum at site {} = {}",
+                    site_idx,
+                    sum
+                );
             }
         }
     }
@@ -542,11 +591,16 @@ fn test_compression_re_expansion() {
     // Verify site-to-pattern mapping is correct by reconstructing the original columns
     for site in 0..aln.width {
         let p_idx = comp.site_to_pattern[site];
-        let expected_col: Vec<u8> = comp.leaf_order.iter()
+        let expected_col: Vec<u8> = comp
+            .leaf_order
+            .iter()
             .map(|name| aln.seqs[name][site])
             .collect();
-        assert_eq!(comp.patterns[p_idx], expected_col,
-            "Pattern for site {} mismatch", site);
+        assert_eq!(
+            comp.patterns[p_idx], expected_col,
+            "Pattern for site {} mismatch",
+            site
+        );
     }
 }
 

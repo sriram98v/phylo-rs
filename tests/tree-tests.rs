@@ -1,50 +1,85 @@
 #[cfg(feature = "non_crypto_hash")]
-use fxhash::{FxHashSet as HashSet, FxHashMap as HashMap};
-#[cfg(not(feature = "non_crypto_hash"))]
-use std::collections::{HashMap, HashSet};
+use fxhash::{FxHashMap as HashMap, FxHashSet as HashSet};
 #[cfg(feature = "parallel")]
 use rayon::prelude::*;
+#[cfg(not(feature = "non_crypto_hash"))]
+use std::collections::{HashMap, HashSet};
 
 use itertools::Itertools;
-use std::fs::{File, read_to_string};
 use phylo::node::PhyloNode;
 use phylo::prelude::*;
 use phylo::tree::PhyloTree;
+use std::fs::{read_to_string, File};
 use std::io::Write;
 
 #[test]
 fn pd() {
     let paths: HashMap<_, _> = std::fs::read_dir("examples/phylogenetic-diversity/trees")
         .unwrap()
-        .map(|x| (x.as_ref().unwrap().file_name().into_string().unwrap(), std::fs::read_dir(x.unwrap().path()).unwrap()
-            .map(|f| (f.as_ref().unwrap().file_name().into_string().unwrap().split("-").map(|x| x.to_string()).collect_vec()[0].clone(), PhyloTree::from_newick(read_to_string(f.unwrap().path()).unwrap().as_bytes()).unwrap()))
-            .collect::<HashMap<_,_>>()))
+        .map(|x| {
+            (
+                x.as_ref().unwrap().file_name().into_string().unwrap(),
+                std::fs::read_dir(x.unwrap().path())
+                    .unwrap()
+                    .map(|f| {
+                        (
+                            f.as_ref()
+                                .unwrap()
+                                .file_name()
+                                .into_string()
+                                .unwrap()
+                                .split("-")
+                                .map(|x| x.to_string())
+                                .collect_vec()[0]
+                                .clone(),
+                            PhyloTree::from_newick(
+                                read_to_string(f.unwrap().path()).unwrap().as_bytes(),
+                            )
+                            .unwrap(),
+                        )
+                    })
+                    .collect::<HashMap<_, _>>(),
+            )
+        })
         .collect();
 
-        let mut output_file =
-        File::create("examples/phylogenetic-diversity/pds.out").unwrap();
+    let mut output_file = File::create("examples/phylogenetic-diversity/pds.out").unwrap();
 
-    for (clade, trees) in paths.iter(){
+    for (clade, trees) in paths.iter() {
         println!("{}", clade);
         let mut pds = vec![];
-        for year in 2015..2023{
+        for year in 2015..2023 {
             let tree = trees.get(&year.to_string());
-            match tree{
+            match tree {
                 Some(t) => {
-                    println!("{}: {}", year, t.get_nodes().map(|n| n.get_weight().unwrap_or(0.0)).sum::<f32>()); 
-                    pds.push(t.get_nodes().map(|n| n.get_weight().unwrap_or(0.0)).sum::<f32>());
-                },
-                _ => {println!("{}: {}", year, 0.0); pds.push(0.0);},
+                    println!(
+                        "{}: {}",
+                        year,
+                        t.get_nodes()
+                            .map(|n| n.get_weight().unwrap_or(0.0))
+                            .sum::<f32>()
+                    );
+                    pds.push(
+                        t.get_nodes()
+                            .map(|n| n.get_weight().unwrap_or(0.0))
+                            .sum::<f32>(),
+                    );
+                }
+                _ => {
+                    println!("{}: {}", year, 0.0);
+                    pds.push(0.0);
+                }
             };
         }
         println!("{:?}", pds);
-        let out = format!("{}: {}\n", clade, pds.iter().map(|x| x.to_string()).join(","));
+        let out = format!(
+            "{}: {}\n",
+            clade,
+            pds.iter().map(|x| x.to_string()).join(",")
+        );
         output_file.write_all(out.as_bytes()).unwrap()
     }
 }
-
-
-
 
 #[test]
 fn distance_matrix() {
@@ -66,10 +101,7 @@ fn build_small_tree() {
     tree.add_child(2, new_node);
     let new_node = PhyloNode::new(5);
     tree.add_child(2, new_node);
-    dbg!(
-        &tree,
-        tree.get_node(1).unwrap().get_children()
-    );
+    dbg!(&tree, tree.get_node(1).unwrap().get_children());
     dbg!(RootedTree::get_node_depth(&tree, 2));
     dbg!(&tree.to_newick().to_string());
     tree.clear();
@@ -111,7 +143,9 @@ fn read_small_tree() {
     dbg!(format!("{}", &tree.to_newick()));
     assert_eq!(
         &tree.get_taxa_space().collect::<HashSet<&String>>(),
-        &vec![&"A".to_string(), &"B".to_string(), &"C".to_string()].into_iter().collect()
+        &vec![&"A".to_string(), &"B".to_string(), &"C".to_string()]
+            .into_iter()
+            .collect()
     );
     let input_str = String::from("((A:1e-3,B:2e-3),C:6e-3);");
     let tree = PhyloTree::from_newick(input_str.as_bytes()).unwrap();
@@ -225,9 +259,8 @@ fn uniform() {
 fn const_lca() {
     let mut tree = PhyloTree::yule(20);
     tree.precompute_constant_time_lca();
-    dbg!(format!("{}", tree.get_lca_id(vec![1,10].as_slice())));
+    dbg!(format!("{}", tree.get_lca_id(vec![1, 10].as_slice())));
 }
-
 
 #[test]
 fn contract_tree() {
@@ -253,7 +286,8 @@ fn contract_tree() {
     new_tree.precompute_constant_time_lca();
 
     let input_str: String = String::from("(1:1.13,((0:0.93,3:1.40):0.58,(2:1.14,4:1.04)):0.11);");
-    let mut tree: SimpleRootedTree<String, f32, f32> = SimpleRootedTree::from_newick(input_str.as_bytes()).unwrap();
+    let mut tree: SimpleRootedTree<String, f32, f32> =
+        SimpleRootedTree::from_newick(input_str.as_bytes()).unwrap();
     dbg!(&tree);
     tree.precompute_constant_time_lca();
     let taxa_subset = vec![
@@ -261,13 +295,13 @@ fn contract_tree() {
         "0".to_string(),
         "4".to_string(),
         // "7".to_string(),
-    ].into_iter()
+    ]
+    .into_iter()
     .map(|x| tree.get_taxa_node_id(&x).unwrap())
     .collect_vec();
 
     let new_tree = tree.contract_tree(taxa_subset.as_slice()).unwrap();
     println!("{}", new_tree.to_newick());
-
 }
 
 #[test]
@@ -361,7 +395,7 @@ fn bipartitions() {
             )
         })
         .collect_vec();
-    
+
     let input_str: String = String::from("(A, (B, (C, (D, (E, (F, (G, H)))))));");
     let t1 = PhyloTree::from_newick(input_str.as_bytes()).unwrap();
     let _bps = t1
@@ -380,14 +414,22 @@ fn bipartitions() {
 #[test]
 #[cfg(feature = "parallel")]
 fn compute_norm_parallel() {
-    for norm in 1..10{
+    for norm in 1..10 {
         let x = (1..1000).map(|x| x as f32).collect_vec();
         let y = x.clone();
-        assert!((PhyloTree::compute_norm(x.into_iter(), norm)-PhyloTree::compute_norm_par(y, norm)).abs()<0.1);
+        assert!(
+            (PhyloTree::compute_norm(x.into_iter(), norm) - PhyloTree::compute_norm_par(y, norm))
+                .abs()
+                < 0.1
+        );
     }
 
     let x = (1..3).combinations_with_replacement(2).collect_vec();
-    let y = (1..3).combinations_with_replacement(2).par_bridge().map(|x| x[0]+x[1]).collect::<Vec<_>>();
+    let y = (1..3)
+        .combinations_with_replacement(2)
+        .par_bridge()
+        .map(|x| x[0] + x[1])
+        .collect::<Vec<_>>();
 
     dbg!(x, y);
 }

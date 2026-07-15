@@ -1,8 +1,8 @@
 #![allow(clippy::needless_lifetimes)]
-/// Module with traits and structs for distance computation
-pub mod distances;
 /// Module with traits and structs for ancestral sequence reconstruction
 pub mod asr;
+/// Module with traits and structs for distance computation
+pub mod distances;
 /// Module with traits and structs for tree encoding
 pub mod io;
 /// Module with traits and structs for tree operations
@@ -26,20 +26,20 @@ mod simple_rooted_tree {
     use crate::iter::{BFSIterator, DFSPostOrderIterator};
     use crate::node::{Node, NodeID};
     use crate::prelude::*;
-    use vers_vecs::BinaryRmq;
     use std::fmt::Debug;
-    use std::sync::Arc;
     use std::hash::{Hash, Hasher};
+    use std::sync::Arc;
+    use vers_vecs::BinaryRmq;
 
     #[cfg(feature = "non_crypto_hash")]
     use fxhash::{FxHashMap as HashMap, FxHashSet as HashSet};
     #[cfg(not(feature = "non_crypto_hash"))]
     use std::collections::{HashMap, HashSet};
 
-    use crate::tree::asr::{MarginalAsr, JointAsr};
+    use crate::tree::asr::{JointAsr, MarginalAsr};
 
     /// Type alias for Phylogenetic tree.
-    pub type PhyloTree = SimpleRootedTree<String,f32,f32>;
+    pub type PhyloTree = SimpleRootedTree<String, f32, f32>;
 
     impl MarginalAsr for PhyloTree {
         fn marginal_asr<A: Alphabet>(
@@ -98,7 +98,7 @@ mod simple_rooted_tree {
 
     /// Arena memory-managed tree struct
     #[derive(Debug, Clone)]
-    pub struct SimpleRootedTree<T,W,Z>
+    pub struct SimpleRootedTree<T, W, Z>
     where
         T: NodeTaxa,
         W: EdgeWeight,
@@ -107,15 +107,15 @@ mod simple_rooted_tree {
         /// Root NodeID
         pub root: NodeID,
         /// Nodes of the tree
-        pub nodes: Vec<Option<Node<T,W,Z>>>,
+        pub nodes: Vec<Option<Node<T, W, Z>>>,
         /// Index of nodes by taxa
         pub taxa_node_id_map: HashMap<TaxaPtr<T>, NodeID>,
         /// Precomputed LCA index for constant-time LCA queries
         pub lca_index: Option<LcaIndex>,
     }
 
-    impl<T,W,Z> SimpleRootedTree<T,W,Z> 
-    where 
+    impl<T, W, Z> SimpleRootedTree<T, W, Z>
+    where
         T: NodeTaxa,
         W: EdgeWeight,
         Z: NodeWeight,
@@ -155,23 +155,23 @@ mod simple_rooted_tree {
         }
 
         /// Creates new node with next NodeID
-        pub fn next_node(&self) -> Node<T,W,Z> {
+        pub fn next_node(&self) -> Node<T, W, Z> {
             Node::new(self.next_id())
         }
 
         /// returns max number of nodes in tree without reallocating node vec
-        pub fn get_capacity(&self)->usize{
+        pub fn get_capacity(&self) -> usize {
             self.nodes.len()
         }
     }
 
-    impl<T,W,Z> RootedTree for SimpleRootedTree<T,W,Z> 
-    where 
+    impl<T, W, Z> RootedTree for SimpleRootedTree<T, W, Z>
+    where
         T: NodeTaxa,
         W: EdgeWeight,
         Z: NodeWeight,
     {
-        type Node = Node<T,W,Z>;
+        type Node = Node<T, W, Z>;
 
         /// Creates new empty tree
         fn new() -> Self {
@@ -199,7 +199,7 @@ mod simple_rooted_tree {
             }
         }
 
-        fn from_nodes(nodes: Vec<Option<Self::Node>>, root_id: TreeNodeID<Self>)->Self{
+        fn from_nodes(nodes: Vec<Option<Self::Node>>, root_id: TreeNodeID<Self>) -> Self {
             SimpleRootedTree {
                 root: root_id,
                 nodes,
@@ -209,11 +209,11 @@ mod simple_rooted_tree {
         }
 
         /// Returns reference to node by ID
-        fn get_node<'a>(&'a self, node_id: TreeNodeID<Self>) -> Option<&'a Node<T,W,Z>> {
+        fn get_node<'a>(&'a self, node_id: TreeNodeID<Self>) -> Option<&'a Node<T, W, Z>> {
             self.nodes[node_id].as_ref()
         }
 
-        fn get_node_mut(&mut self, node_id: TreeNodeID<Self>) -> Option<&mut Node<T,W,Z>> {
+        fn get_node_mut(&mut self, node_id: TreeNodeID<Self>) -> Option<&mut Node<T, W, Z>> {
             self.nodes[node_id].as_mut()
         }
 
@@ -225,7 +225,7 @@ mod simple_rooted_tree {
             self.nodes.iter_mut().filter_map(|x| x.as_mut())
         }
 
-        fn set_node(&mut self, node: Node<T,W,Z>) {
+        fn set_node(&mut self, node: Node<T, W, Z>) {
             let node_id = node.get_id();
             if let Some(arc) = node.get_taxa_arc() {
                 self.taxa_node_id_map
@@ -249,7 +249,7 @@ mod simple_rooted_tree {
             self.root = node_id;
         }
 
-        fn remove_node(&mut self, node_id: TreeNodeID<Self>) -> Option<Node<T,W,Z>> {
+        fn remove_node(&mut self, node_id: TreeNodeID<Self>) -> Option<Node<T, W, Z>> {
             if let Some(pid) = self.get_node_parent_id(node_id) {
                 self.get_node_mut(pid).unwrap().remove_child(&node_id)
             }
@@ -285,14 +285,16 @@ mod simple_rooted_tree {
         }
     }
 
-    impl<T,W,Z> RootedMetaTree for SimpleRootedTree<T,W,Z> 
-    where 
+    impl<T, W, Z> RootedMetaTree for SimpleRootedTree<T, W, Z>
+    where
         T: NodeTaxa,
         W: EdgeWeight,
         Z: NodeWeight,
     {
         fn get_taxa_node(&self, taxa: &TreeNodeMeta<Self>) -> Option<&Self::Node> {
-            let node_id = self.taxa_node_id_map.iter()
+            let node_id = self
+                .taxa_node_id_map
+                .iter()
                 .find(|(tp, _)| tp.0.as_ref() == taxa)
                 .map(|(_, id)| *id)?;
             self.get_node(node_id)
@@ -301,7 +303,9 @@ mod simple_rooted_tree {
         fn set_node_taxa(&mut self, node_id: TreeNodeID<Self>, taxa: Option<TreeNodeMeta<Self>>) {
             if let Some(t) = taxa {
                 let arc = Arc::new(t);
-                self.get_node_mut(node_id).unwrap().set_taxa_arc(Some(arc.clone()));
+                self.get_node_mut(node_id)
+                    .unwrap()
+                    .set_taxa_arc(Some(arc.clone()));
                 self.taxa_node_id_map.insert(TaxaPtr(arc), node_id);
             } else {
                 self.get_node_mut(node_id).unwrap().set_taxa(None);
@@ -321,13 +325,13 @@ mod simple_rooted_tree {
         }
     }
 
-    impl<T,W,Z> Yule for SimpleRootedTree<T,W,Z> 
-    where 
+    impl<T, W, Z> Yule for SimpleRootedTree<T, W, Z>
+    where
         T: NodeTaxa,
         W: EdgeWeight,
         Z: NodeWeight,
     {
-        fn yule(num_taxa: usize) -> SimpleRootedTree<T,W,Z> {
+        fn yule(num_taxa: usize) -> SimpleRootedTree<T, W, Z> {
             let mut tree = SimpleRootedTree::new(0);
             if num_taxa < 3 {
                 return tree;
@@ -335,7 +339,7 @@ mod simple_rooted_tree {
             let new_node = Node::new(1);
             tree.add_child(0, new_node);
             tree.set_node_taxa(1, T::from_str("0").ok());
-            let new_node =  Node::new(2);
+            let new_node = Node::new(2);
             tree.add_child(0, new_node);
             tree.set_node_taxa(2, T::from_str("1").ok());
             if num_taxa < 4 {
@@ -348,10 +352,10 @@ mod simple_rooted_tree {
                     .choose(&mut rand::thread_rng())
                     .unwrap();
                 let rand_leaf_parent_id = tree.get_node_parent_id(*rand_leaf_id).unwrap();
-                let split_node =  Node::new(tree.next_id());
+                let split_node = Node::new(tree.next_id());
                 let split_node_id = split_node.get_id();
                 tree.split_edge((rand_leaf_parent_id, *rand_leaf_id), split_node);
-                let new_leaf =  Node::new(tree.next_id());
+                let new_leaf = Node::new(tree.next_id());
                 let new_leaf_id = new_leaf.get_id();
                 tree.add_child(split_node_id, new_leaf);
                 tree.set_node_taxa(new_leaf_id, T::from_str(&i.to_string()).ok());
@@ -361,21 +365,21 @@ mod simple_rooted_tree {
         }
     }
 
-    impl<T,W,Z> Uniform for SimpleRootedTree<T,W,Z> 
-    where 
+    impl<T, W, Z> Uniform for SimpleRootedTree<T, W, Z>
+    where
         T: NodeTaxa,
         W: EdgeWeight,
         Z: NodeWeight,
     {
-        fn unif(num_taxa: usize) -> SimpleRootedTree<T,W,Z> {
+        fn unif(num_taxa: usize) -> SimpleRootedTree<T, W, Z> {
             let mut tree = SimpleRootedTree::new(0);
             if num_taxa < 3 {
                 return tree;
             }
-            let new_node =  Node::new(1);
+            let new_node = Node::new(1);
             tree.add_child(0, new_node);
             tree.set_node_taxa(1, T::from_str("0").ok());
-            let new_node =  Node::new(2);
+            let new_node = Node::new(2);
             tree.add_child(0, new_node);
             tree.set_node_taxa(2, T::from_str("1").ok());
             if num_taxa < 3 {
@@ -388,11 +392,11 @@ mod simple_rooted_tree {
                     .choose(&mut rand::thread_rng())
                     .unwrap();
                 let rand_leaf_parent_id = tree.get_node_parent_id(rand_leaf_id).unwrap();
-                let split_node =  Node::new(tree.next_id());
+                let split_node = Node::new(tree.next_id());
                 let split_node_id = split_node.get_id();
                 current_node_ids.push(split_node_id);
                 tree.split_edge((rand_leaf_parent_id, rand_leaf_id), split_node);
-                let new_leaf =  Node::new(tree.next_id());
+                let new_leaf = Node::new(tree.next_id());
                 let new_leaf_id = new_leaf.get_id();
                 tree.add_child(split_node_id, new_leaf);
                 tree.set_node_taxa(new_leaf_id, T::from_str(&i.to_string()).ok());
@@ -402,8 +406,8 @@ mod simple_rooted_tree {
         }
     }
 
-    impl<T,W,Z> RootedWeightedTree for SimpleRootedTree<T,W,Z> 
-    where 
+    impl<T, W, Z> RootedWeightedTree for SimpleRootedTree<T, W, Z>
+    where
         T: NodeTaxa,
         W: EdgeWeight,
         Z: NodeWeight,
@@ -416,57 +420,64 @@ mod simple_rooted_tree {
         }
     }
 
-    impl<T,W,Z> PathFunction for SimpleRootedTree<T,W,Z> 
-    where 
+    impl<T, W, Z> PathFunction for SimpleRootedTree<T, W, Z>
+    where
         T: NodeTaxa,
         W: EdgeWeight,
         Z: NodeWeight,
-    {}
+    {
+    }
 
-    impl<T,W,Z> Ancestors for SimpleRootedTree<T,W,Z> 
-    where 
+    impl<T, W, Z> Ancestors for SimpleRootedTree<T, W, Z>
+    where
         T: NodeTaxa,
         W: EdgeWeight,
         Z: NodeWeight,
-    {}
+    {
+    }
 
-    impl<T,W,Z> Subtree for SimpleRootedTree<T,W,Z> 
-    where 
+    impl<T, W, Z> Subtree for SimpleRootedTree<T, W, Z>
+    where
         T: NodeTaxa,
         W: EdgeWeight,
         Z: NodeWeight,
-    {}
+    {
+    }
 
-    impl<T,W,Z> PreOrder for SimpleRootedTree<T,W,Z> 
-    where 
+    impl<T, W, Z> PreOrder for SimpleRootedTree<T, W, Z>
+    where
         T: NodeTaxa,
         W: EdgeWeight,
         Z: NodeWeight,
-    {}
+    {
+    }
 
-    impl<T,W,Z> ClusterMatching for SimpleRootedTree<T,W,Z> 
-    where 
+    impl<T, W, Z> ClusterMatching for SimpleRootedTree<T, W, Z>
+    where
         T: NodeTaxa,
         W: EdgeWeight,
         Z: NodeWeight,
-    {}
+    {
+    }
 
-    impl<T,W,Z> ClusterAffinity for SimpleRootedTree<T,W,Z> 
-    where 
+    impl<T, W, Z> ClusterAffinity for SimpleRootedTree<T, W, Z>
+    where
         T: NodeTaxa,
         W: EdgeWeight,
         Z: NodeWeight,
-    {}
+    {
+    }
 
-    impl<T,W,Z> RobinsonFoulds for SimpleRootedTree<T,W,Z> 
-    where 
+    impl<T, W, Z> RobinsonFoulds for SimpleRootedTree<T, W, Z>
+    where
         T: NodeTaxa,
         W: EdgeWeight,
         Z: NodeWeight,
-    {}
+    {
+    }
 
-    impl<T,W,Z> DistanceMatrix for SimpleRootedTree<T,W,Z> 
-    where 
+    impl<T, W, Z> DistanceMatrix for SimpleRootedTree<T, W, Z>
+    where
         T: NodeTaxa,
         W: EdgeWeight,
         Z: NodeWeight,
@@ -514,12 +525,12 @@ mod simple_rooted_tree {
                 })
                 .sum();
 
-            d1 + d2 - (W::one()+W::one()) * dlca
+            d1 + d2 - (W::one() + W::one()) * dlca
         }
     }
 
-    impl<T,W,Z> DFS for SimpleRootedTree<T,W,Z> 
-    where 
+    impl<T, W, Z> DFS for SimpleRootedTree<T, W, Z>
+    where
         T: NodeTaxa,
         W: EdgeWeight,
         Z: NodeWeight,
@@ -539,8 +550,8 @@ mod simple_rooted_tree {
         }
     }
 
-    impl<T,W,Z> BFS for SimpleRootedTree<T,W,Z> 
-    where 
+    impl<T, W, Z> BFS for SimpleRootedTree<T, W, Z>
+    where
         T: NodeTaxa,
         W: EdgeWeight,
         Z: NodeWeight,
@@ -560,8 +571,8 @@ mod simple_rooted_tree {
         }
     }
 
-    impl<T,W,Z> ContractTree for SimpleRootedTree<T,W,Z> 
-    where 
+    impl<T, W, Z> ContractTree for SimpleRootedTree<T, W, Z>
+    where
         T: NodeTaxa,
         W: EdgeWeight,
         Z: NodeWeight,
@@ -603,7 +614,11 @@ mod simple_rooted_tree {
                                 // node should be added to both node_map and remove_list
                                 // if child of node is already in remove list, attach node children to node first
                                 let child_node_id = node_children_ids[0];
-                                let child_node_edge_weight = self.get_node(child_node_id).unwrap().get_weight().unwrap_or(W::zero());
+                                let child_node_edge_weight = self
+                                    .get_node(child_node_id)
+                                    .unwrap()
+                                    .get_weight()
+                                    .unwrap_or(W::zero());
 
                                 if remove_list[child_node_id] {
                                     node.remove_child(&child_node_id);
@@ -621,7 +636,8 @@ mod simple_rooted_tree {
                                             .as_ref()
                                             .unwrap()
                                             .get_weight()
-                                            .unwrap_or(W::zero()) + child_node_edge_weight;
+                                            .unwrap_or(W::zero())
+                                            + child_node_edge_weight;
                                         node_map[grandchild_id]
                                             .as_mut()
                                             .unwrap()
@@ -643,7 +659,11 @@ mod simple_rooted_tree {
                                         // children of chid are node grandchildren
                                         // add grandchildren to node children
                                         // set grandchildren parent to node
-                                        let chid_weight = self.get_node(chid).unwrap().get_weight().unwrap_or(W::zero());
+                                        let chid_weight = self
+                                            .get_node(chid)
+                                            .unwrap()
+                                            .get_weight()
+                                            .unwrap_or(W::zero());
                                         node.remove_child(&chid);
                                         let node_grandchildren = node_map[chid]
                                             .as_mut()
@@ -655,7 +675,8 @@ mod simple_rooted_tree {
                                                 .as_ref()
                                                 .unwrap()
                                                 .get_weight()
-                                                .unwrap_or(W::zero()) + chid_weight;
+                                                .unwrap_or(W::zero())
+                                                + chid_weight;
                                             node.add_child(grandchild_id);
                                             node_map[grandchild_id]
                                                 .as_mut()
@@ -688,7 +709,7 @@ mod simple_rooted_tree {
         fn contract_tree(&self, leaf_ids: &[TreeNodeID<Self>]) -> Result<Self, ()> {
             let new_tree_root_id = self.get_lca_id(leaf_ids);
             let new_nodes = self.contracted_tree_nodes(leaf_ids);
-            let mut new_tree = SimpleRootedTree{
+            let mut new_tree = SimpleRootedTree {
                 root: new_tree_root_id,
                 nodes: vec![None; self.nodes.len()],
                 taxa_node_id_map: vec![].into_iter().collect(),
@@ -704,9 +725,9 @@ mod simple_rooted_tree {
             node_iter: impl Iterator<Item = TreeNodeID<Self>>,
         ) -> Result<Self, ()> {
             let new_tree_root_id = self.get_lca_id(leaf_ids);
-            let new_nodes = self
-                .contracted_tree_nodes_from_iter(new_tree_root_id, leaf_ids, node_iter);
-            let mut new_tree = SimpleRootedTree{
+            let new_nodes =
+                self.contracted_tree_nodes_from_iter(new_tree_root_id, leaf_ids, node_iter);
+            let mut new_tree = SimpleRootedTree {
                 root: new_tree_root_id,
                 nodes: vec![None; self.nodes.len()],
                 taxa_node_id_map: vec![].into_iter().collect(),
@@ -717,7 +738,7 @@ mod simple_rooted_tree {
         }
     }
 
-    impl<T,W,Z> EulerWalk for SimpleRootedTree<T,W,Z>
+    impl<T, W, Z> EulerWalk for SimpleRootedTree<T, W, Z>
     where
         T: NodeTaxa,
         W: EdgeWeight,
@@ -750,12 +771,18 @@ mod simple_rooted_tree {
                 fai[node_id] = Some(euler.iter().position(|x| x == &node_id).unwrap());
             }
 
-            let da: Vec<usize> = euler.iter()
+            let da: Vec<usize> = euler
+                .iter()
                 .map(|x| RootedTree::get_node_depth(self, *x))
                 .collect();
             let rmq = BinaryRmq::from_vec(da.iter().map(|x| *x as u64).collect_vec());
 
-            self.lca_index = Some(LcaIndex { euler, fai, da, rmq });
+            self.lca_index = Some(LcaIndex {
+                euler,
+                fai,
+                da,
+                rmq,
+            });
         }
 
         fn get_precomputed_walk(
@@ -827,31 +854,31 @@ mod simple_rooted_tree {
         }
     }
 
-    impl<T,W,Z> Clusters for SimpleRootedTree<T,W,Z> 
-    where 
+    impl<T, W, Z> Clusters for SimpleRootedTree<T, W, Z>
+    where
         T: NodeTaxa,
         W: EdgeWeight,
         Z: NodeWeight,
     {
         fn get_median_node_id_for_leaves(
-                &self,
-                taxa_set: impl ExactSizeIterator<Item = TreeNodeID<Self>>,
-            ) -> TreeNodeID<Self> {
-            let mut cluster_sizes = vec![0;self.nodes.len()];
+            &self,
+            taxa_set: impl ExactSizeIterator<Item = TreeNodeID<Self>>,
+        ) -> TreeNodeID<Self> {
+            let mut cluster_sizes = vec![0; self.nodes.len()];
             let mut median_node_id: TreeNodeID<Self> = self.get_root_id();
             let leaf_ids: HashSet<TreeNodeID<Self>> = taxa_set.collect();
-            for n_id in self.postord_ids(self.get_root_id()){
-                if self.is_leaf(n_id) && leaf_ids.contains(&n_id){
+            for n_id in self.postord_ids(self.get_root_id()) {
+                if self.is_leaf(n_id) && leaf_ids.contains(&n_id) {
                     cluster_sizes[n_id] = 1;
-                }
-                else{
-                    for c_id in self.get_node_children_ids(n_id){
-                        cluster_sizes[n_id]+=cluster_sizes[c_id];
+                } else {
+                    for c_id in self.get_node_children_ids(n_id) {
+                        cluster_sizes[n_id] += cluster_sizes[c_id];
                     }
                 }
             }
             loop {
-                median_node_id = self.get_node_children_ids(median_node_id)
+                median_node_id = self
+                    .get_node_children_ids(median_node_id)
                     .max_by(|x, y| {
                         let x_cluster_size = cluster_sizes[*x];
                         let y_cluster_size = cluster_sizes[*y];
@@ -872,23 +899,22 @@ mod simple_rooted_tree {
             self.get_node(self.get_median_node_id_for_leaves(taxa_set))
                 .unwrap()
         }
-    
+
         /// Returns an immutable reference to median node of all leaves in a tree.
         fn get_median_node<'a>(&'a self) -> &'a Self::Node {
             let leaves = self.get_leaves().map(|x| x.get_id());
             self.get_median_node_for_leaves(leaves)
         }
-    
+
         /// Returns median Node<T,W,Z>ID of all leaves in a tree.
         fn get_median_node_id(&self) -> TreeNodeID<Self> {
             let leaves = self.get_leaf_ids();
             self.get_median_node_id_for_leaves(leaves)
         }
-    
     }
 
-    impl<T,W,Z> Newick for SimpleRootedTree<T,W,Z> 
-    where 
+    impl<T, W, Z> Newick for SimpleRootedTree<T, W, Z>
+    where
         T: NodeTaxa,
         W: EdgeWeight,
         Z: NodeWeight,
@@ -909,7 +935,7 @@ mod simple_rooted_tree {
                 match newick_string[str_ptr] {
                     '(' => {
                         stack.push(context);
-                        let new_node =  Node::new(tree.next_id());
+                        let new_node = Node::new(tree.next_id());
                         context = new_node.get_id();
                         tree.set_node(new_node);
                         str_ptr += 1;
@@ -937,7 +963,7 @@ mod simple_rooted_tree {
 
                         match newick_string[str_ptr] {
                             ',' => {
-                                let new_node =  Node::new(tree.next_id());
+                                let new_node = Node::new(tree.next_id());
                                 context = new_node.get_id();
                                 tree.set_node(new_node);
                                 str_ptr += 1;
@@ -1031,7 +1057,9 @@ mod simple_rooted_tree {
                     tmp.push(')');
                 }
             }
-            if let Some(taxa_str) = &node.get_taxa() {tmp.push_str(&taxa_str.to_string());};
+            if let Some(taxa_str) = &node.get_taxa() {
+                tmp.push_str(&taxa_str.to_string());
+            };
             if let Some(w) = node.get_weight() {
                 tmp.push(':');
                 tmp.push_str(&w.to_string());
@@ -1040,15 +1068,16 @@ mod simple_rooted_tree {
         }
     }
 
-    impl<T,W,Z> Nexus for SimpleRootedTree<T,W,Z> 
-    where 
+    impl<T, W, Z> Nexus for SimpleRootedTree<T, W, Z>
+    where
         T: NodeTaxa,
         W: EdgeWeight,
         Z: NodeWeight,
-    {}
+    {
+    }
 
-    impl<T,W,Z> SPR for SimpleRootedTree<T,W,Z> 
-    where 
+    impl<T, W, Z> SPR for SimpleRootedTree<T, W, Z>
+    where
         T: NodeTaxa,
         W: EdgeWeight,
         Z: NodeWeight,
@@ -1075,7 +1104,13 @@ mod simple_rooted_tree {
             pruned_tree
                 .get_node_mut(pruned_tree.get_root_id())
                 .unwrap()
-                .add_children(self.get_node(node_id).unwrap().get_children().iter().copied());
+                .add_children(
+                    self.get_node(node_id)
+                        .unwrap()
+                        .get_children()
+                        .iter()
+                        .copied(),
+                );
             let dfs = self.dfs(node_id).collect_vec();
             for node in dfs {
                 // self.nodes.remove(node.get_id());
@@ -1085,27 +1120,25 @@ mod simple_rooted_tree {
         }
     }
 
-    impl<T,W,Z> NNI for SimpleRootedTree<T,W,Z> 
-    where 
+    impl<T, W, Z> NNI for SimpleRootedTree<T, W, Z>
+    where
         T: NodeTaxa,
         W: EdgeWeight,
         Z: NodeWeight,
     {
-        fn nni(
-            &mut self,
-            node_id: TreeNodeID<Self>,
-            left_ch: bool
-        ) -> Result<(), ()> {
-            if self.is_leaf(node_id) || node_id==self.get_root_id(){
+        fn nni(&mut self, node_id: TreeNodeID<Self>, left_ch: bool) -> Result<(), ()> {
+            if self.is_leaf(node_id) || node_id == self.get_root_id() {
                 panic!("NNI cannot be performed at a leaf or root!")
-            }
-            else{
+            } else {
                 let node_parent_id = self.get_node_parent_id(node_id).unwrap();
 
                 let node_ch_ids = self.get_node_children_ids(node_id).collect_vec();
                 let node_ch1 = node_ch_ids[left_ch as usize];
-                let node_sibling = self.get_node_children_ids(node_parent_id).filter(|x| x!=&node_id).collect_vec()[0];
-                
+                let node_sibling = self
+                    .get_node_children_ids(node_parent_id)
+                    .filter(|x| x != &node_id)
+                    .collect_vec()[0];
+
                 // set node_ch2 as sibling to parent node
                 self.delete_edge(node_id, node_ch1);
                 self.delete_edge(node_parent_id, node_sibling);
@@ -1113,14 +1146,13 @@ mod simple_rooted_tree {
                 self.set_child(node_parent_id, node_ch1);
                 self.set_child(node_id, node_sibling);
 
-
                 Ok(())
             }
         }
     }
 
-    impl<T,W,Z> Balance for SimpleRootedTree<T,W,Z> 
-    where 
+    impl<T, W, Z> Balance for SimpleRootedTree<T, W, Z>
+    where
         T: NodeTaxa,
         W: EdgeWeight,
         Z: NodeWeight,
@@ -1148,7 +1180,7 @@ mod simple_rooted_tree {
                         .filter(|node| node.is_leaf())
                         .collect_vec()[0]
                         .get_id();
-                    self.split_edge((child2, *other_leaf_id),  Node::new(split_id));
+                    self.split_edge((child2, *other_leaf_id), Node::new(split_id));
                     self.add_child(dbg!(split_id), leaf_node);
                 }
                 (false, true) => {
@@ -1159,7 +1191,7 @@ mod simple_rooted_tree {
                         .filter(|node| node.is_leaf())
                         .collect_vec()[0]
                         .get_id();
-                    self.split_edge((child1, *other_leaf_id),  Node::new(split_id));
+                    self.split_edge((child1, *other_leaf_id), Node::new(split_id));
                     self.add_child(split_id, leaf_node);
                 }
                 _ => {}
@@ -1169,15 +1201,16 @@ mod simple_rooted_tree {
         }
     }
 
-    impl<T,W,Z> CopheneticDistance for SimpleRootedTree<T,W,Z>
+    impl<T, W, Z> CopheneticDistance for SimpleRootedTree<T, W, Z>
     where
         T: NodeTaxa,
         W: EdgeWeight,
         Z: NodeWeight,
-    {}
+    {
+    }
 
     #[cfg(feature = "serde")]
-    impl<T,W,Z> serde::Serialize for SimpleRootedTree<T,W,Z>
+    impl<T, W, Z> serde::Serialize for SimpleRootedTree<T, W, Z>
     where
         T: NodeTaxa + serde::Serialize,
         W: EdgeWeight + serde::Serialize,
@@ -1197,7 +1230,7 @@ mod simple_rooted_tree {
     }
 
     #[cfg(feature = "serde")]
-    impl<'de,T,W,Z> serde::Deserialize<'de> for SimpleRootedTree<T,W,Z>
+    impl<'de, T, W, Z> serde::Deserialize<'de> for SimpleRootedTree<T, W, Z>
     where
         T: NodeTaxa + serde::Deserialize<'de>,
         W: EdgeWeight + serde::Deserialize<'de>,
@@ -1208,22 +1241,21 @@ mod simple_rooted_tree {
             D: serde::Deserializer<'de>,
         {
             #[derive(serde::Deserialize)]
-            struct Helper<T,W,Z>
+            struct Helper<T, W, Z>
             where
                 T: NodeTaxa,
                 W: EdgeWeight,
                 Z: NodeWeight,
             {
                 root: NodeID,
-                nodes: Vec<Option<Node<T,W,Z>>>,
+                nodes: Vec<Option<Node<T, W, Z>>>,
                 lca_index: Option<LcaIndex>,
             }
 
-            let helper: Helper<T,W,Z> = Helper::deserialize(deserializer)?;
+            let helper: Helper<T, W, Z> = Helper::deserialize(deserializer)?;
 
             // Rebuild taxa_node_id_map from node data
-            let mut taxa_node_id_map: HashMap<TaxaPtr<T>, NodeID> =
-                [].into_iter().collect();
+            let mut taxa_node_id_map: HashMap<TaxaPtr<T>, NodeID> = [].into_iter().collect();
             for node in helper.nodes.iter().flatten() {
                 if let Some(arc) = node.get_taxa_arc() {
                     taxa_node_id_map.insert(TaxaPtr(arc.clone()), node.get_id());
@@ -1305,7 +1337,10 @@ mod simple_rooted_tree {
                 // Internal node's children: existing sibling and the new leaf l_i
                 internal_node.add_child(sibling_id);
                 internal_node.add_child(i);
-                nodes[sibling_id].as_mut().unwrap().set_parent(Some(internal_id));
+                nodes[sibling_id]
+                    .as_mut()
+                    .unwrap()
+                    .set_parent(Some(internal_id));
                 nodes[i].as_mut().unwrap().set_parent(Some(internal_id));
 
                 nodes[internal_id] = Some(internal_node);

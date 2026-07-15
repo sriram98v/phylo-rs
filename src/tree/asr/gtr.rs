@@ -1,6 +1,6 @@
-use nalgebra::{DMatrix, DVector};
 use crate::error::AsrError;
 use crate::tree::asr::alphabet::Alphabet;
+use nalgebra::{DMatrix, DVector};
 
 /// General Time Reversible (GTR) substitution model.
 pub struct GtrModel<A: Alphabet> {
@@ -21,10 +21,14 @@ impl<A: Alphabet> GtrModel<A> {
     pub fn new(pi: Vec<f64>, w: DMatrix<f64>, normalize: bool) -> Result<Self, AsrError> {
         let n = A::N_STATES;
         if pi.len() != n {
-            return Err(AsrError::AlphabetMismatch("pi length does not match alphabet states".to_string()));
+            return Err(AsrError::AlphabetMismatch(
+                "pi length does not match alphabet states".to_string(),
+            ));
         }
         if w.nrows() != n || w.ncols() != n {
-            return Err(AsrError::AlphabetMismatch("W matrix dimensions do not match alphabet states".to_string()));
+            return Err(AsrError::AlphabetMismatch(
+                "W matrix dimensions do not match alphabet states".to_string(),
+            ));
         }
 
         let pi_vec = DVector::from_vec(pi);

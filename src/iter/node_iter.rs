@@ -5,9 +5,9 @@ use fxhash::{FxHashMap as HashMap, FxHashSet as HashSet};
 #[cfg(not(feature = "non_crypto_hash"))]
 use std::collections::{HashMap, HashSet};
 
+use itertools::Itertools;
 use std::{collections::VecDeque, ops::Index};
 use vers_vecs::BitVec;
-use itertools::Itertools;
 
 use crate::{
     node::simple_rnode::RootedTreeNode,
@@ -502,8 +502,7 @@ pub trait Clusters: DFS + BFS + Sized {
             .enumerate()
             .map(|(idx, id)| (id, idx))
             .collect();
-        let leaf_ids_rev: Vec<TreeNodeID<Self>> =
-            leaf_ids.keys().copied().collect();
+        let leaf_ids_rev: Vec<TreeNodeID<Self>> = leaf_ids.keys().copied().collect();
         let num_leaves = leaf_ids.len();
         let mut bps: HashMap<TreeNodeID<Self>, BitVec> = vec![].into_iter().collect();
         for n_id in self.postord_ids(self.get_root_id()) {
@@ -511,18 +510,19 @@ pub trait Clusters: DFS + BFS + Sized {
             match self.is_leaf(n_id) {
                 true => {
                     bp.flip_bit(*leaf_ids.get(&n_id).unwrap());
-                    bps.insert(n_id, bp.clone());  
+                    bps.insert(n_id, bp.clone());
                 }
                 false => {
-                    if n_id==self.get_root_id(){
+                    if n_id == self.get_root_id() {
                         continue;
                     }
-                    self
-                        .get_node_children_ids(n_id)
+                    self.get_node_children_ids(n_id)
                         .map(|x| bps.get(&x).unwrap())
-                        .for_each(|x| {let _ = bp.apply_mask_or(x);});
+                        .for_each(|x| {
+                            let _ = bp.apply_mask_or(x);
+                        });
                     if self.get_node_parent_id(n_id) != Some(self.get_root_id()) {
-                        bps.insert(n_id, bp);        
+                        bps.insert(n_id, bp);
                     }
                 }
             };
@@ -531,8 +531,8 @@ pub trait Clusters: DFS + BFS + Sized {
         bps.into_values().map(move |bit_bp| {
             let mut bp1 = Vec::with_capacity(leaf_ids.len());
             let mut bp2 = Vec::with_capacity(leaf_ids.len());
-            for (idx, bit) in leaf_ids_rev.iter().enumerate().take(bit_bp.len()){
-                 match bit_bp.is_bit_set(idx).unwrap() {
+            for (idx, bit) in leaf_ids_rev.iter().enumerate().take(bit_bp.len()) {
+                match bit_bp.is_bit_set(idx).unwrap() {
                     true => {
                         bp1.push(bit.to_owned());
                     }
@@ -553,20 +553,20 @@ pub trait Clusters: DFS + BFS + Sized {
         let mut cluster_sizes: HashMap<TreeNodeID<Self>, usize> = vec![].into_iter().collect();
         let mut median_node_id: TreeNodeID<Self> = self.get_root_id();
         let leaf_ids: HashSet<TreeNodeID<Self>> = taxa_set.collect();
-        for n_id in self.postord_ids(self.get_root_id()){
-            if self.is_leaf(n_id) && leaf_ids.contains(&n_id){
+        for n_id in self.postord_ids(self.get_root_id()) {
+            if self.is_leaf(n_id) && leaf_ids.contains(&n_id) {
                 cluster_sizes.insert(n_id, 1);
-            }
-            else{
+            } else {
                 let mut cluster_size = 0;
-                for c_id in self.get_node_children_ids(n_id){
-                    cluster_size+=cluster_sizes.get(&c_id).unwrap();
+                for c_id in self.get_node_children_ids(n_id) {
+                    cluster_size += cluster_sizes.get(&c_id).unwrap();
                 }
                 cluster_sizes.insert(n_id, cluster_size);
             }
         }
         loop {
-            median_node_id = self.get_node_children_ids(median_node_id)
+            median_node_id = self
+                .get_node_children_ids(median_node_id)
                 .max_by(|x, y| {
                     let x_cluster_size = cluster_sizes.get(x).unwrap();
                     let y_cluster_size = cluster_sizes.get(y).unwrap();

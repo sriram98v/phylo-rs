@@ -1,10 +1,8 @@
 use phylo::prelude::*;
-use std::{fs, env};
+use rand::{seq::IteratorRandom, thread_rng};
 use std::error::Error;
 use std::time::Instant;
-use rand::{seq::IteratorRandom, thread_rng};
-
-
+use std::{env, fs};
 
 fn main() -> Result<(), Box<dyn Error>> {
     let args = env::args().collect::<Vec<_>>();
@@ -18,7 +16,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let ntaxa = taxa_set.len();
     let taxa_subset = taxa_set
         .into_iter()
-        .choose_multiple(&mut rng, ((ntaxa as f32)*0.05) as usize);
+        .choose_multiple(&mut rng, ((ntaxa as f32) * 0.05) as usize);
     tree.precompute_constant_time_lca();
 
     let now = Instant::now();

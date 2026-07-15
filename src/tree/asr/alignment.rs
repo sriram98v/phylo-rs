@@ -1,5 +1,5 @@
-use std::collections::HashMap;
 use crate::error::AsrError;
+use std::collections::HashMap;
 
 /// A multiple sequence alignment.
 pub struct Alignment {
@@ -26,16 +26,24 @@ impl Alignment {
             if line[0] == b'>' {
                 if !current_id.is_empty() {
                     if seqs.contains_key(&current_id) {
-                        return Err(AsrError::InvalidAlignment(format!("Duplicate taxon ID: {}", current_id)));
+                        return Err(AsrError::InvalidAlignment(format!(
+                            "Duplicate taxon ID: {}",
+                            current_id
+                        )));
                     }
                     seqs.insert(current_id.clone(), current_seq);
                 }
                 // Header is everything from '>' to first whitespace
                 let header = &line[1..];
-                let end = header.iter().position(|&b| b.is_ascii_whitespace()).unwrap_or(header.len());
+                let end = header
+                    .iter()
+                    .position(|&b| b.is_ascii_whitespace())
+                    .unwrap_or(header.len());
                 let raw_name = String::from_utf8_lossy(&header[..end]);
                 if raw_name.is_empty() {
-                    return Err(AsrError::InvalidAlignment("Empty taxon ID in FASTA header".to_string()));
+                    return Err(AsrError::InvalidAlignment(
+                        "Empty taxon ID in FASTA header".to_string(),
+                    ));
                 }
                 current_id = raw_name.into_owned();
                 current_seq = Vec::new();
@@ -48,7 +56,10 @@ impl Alignment {
 
         if !current_id.is_empty() {
             if seqs.contains_key(&current_id) {
-                return Err(AsrError::InvalidAlignment(format!("Duplicate taxon ID: {}", current_id)));
+                return Err(AsrError::InvalidAlignment(format!(
+                    "Duplicate taxon ID: {}",
+                    current_id
+                )));
             }
             seqs.insert(current_id, current_seq);
         }
@@ -59,7 +70,9 @@ impl Alignment {
 
         let width = seqs.values().next().unwrap().len();
         if !seqs.values().all(|s| s.len() == width) {
-            return Err(AsrError::InvalidAlignment("Ragged alignment: sequences have different lengths".to_string()));
+            return Err(AsrError::InvalidAlignment(
+                "Ragged alignment: sequences have different lengths".to_string(),
+            ));
         }
 
         Ok(Self { seqs, width })
@@ -68,7 +81,8 @@ impl Alignment {
     /// Helper for reading FASTA from a file (std only).
     pub fn from_fasta_file(path: &std::path::Path) -> std::io::Result<Self> {
         let bytes = std::fs::read(path)?;
-        Self::from_fasta_bytes(&bytes).map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))
+        Self::from_fasta_bytes(&bytes)
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))
     }
 
     /// Compresses the alignment into unique patterns with multiplicities.

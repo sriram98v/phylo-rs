@@ -7,36 +7,39 @@ use std::collections::VecDeque;
 
 /// Struct for BFS iteration of nodes in a tree
 #[derive(Clone)]
-pub struct BFSIterator<'a,T,W,Z> 
-where 
+pub struct BFSIterator<'a, T, W, Z>
+where
     T: NodeTaxa,
     W: EdgeWeight,
     Z: NodeWeight,
 {
     stack: VecDeque<usize>,
-    nodes: Vec<Option<&'a Node<T,W,Z>>>,
+    nodes: Vec<Option<&'a Node<T, W, Z>>>,
 }
 
 /// Struct for DFS postfix iteration of nodes in a tree
 #[derive(Clone)]
-pub struct DFSPostOrderIterator<'a,T,W,Z> 
-where 
+pub struct DFSPostOrderIterator<'a, T, W, Z>
+where
     T: NodeTaxa,
     W: EdgeWeight,
     Z: NodeWeight,
 {
-    stack: VecDeque<&'a Node<T,W,Z>>,
-    nodes: Vec<Option<&'a Node<T,W,Z>>>,
+    stack: VecDeque<&'a Node<T, W, Z>>,
+    nodes: Vec<Option<&'a Node<T, W, Z>>>,
 }
 
-impl<'a,T,W,Z> BFSIterator<'a,T,W,Z> 
-where 
+impl<'a, T, W, Z> BFSIterator<'a, T, W, Z>
+where
     T: NodeTaxa,
     W: EdgeWeight,
     Z: NodeWeight,
 {
     /// Creates a new BFS iterator of a tree
-    pub fn new(tree: &'a impl RootedTree<Node = Node<T,W,Z>>, start_id: usize) -> BFSIterator<'a,T,W,Z> {
+    pub fn new(
+        tree: &'a impl RootedTree<Node = Node<T, W, Z>>,
+        start_id: usize,
+    ) -> BFSIterator<'a, T, W, Z> {
         let max_id = tree.get_node_ids().max().unwrap();
         let mut nodes = vec![None; max_id + 1];
         tree.get_nodes()
@@ -48,17 +51,17 @@ where
     }
 }
 
-impl<'a,T,W,Z> DFSPostOrderIterator<'a,T,W,Z> 
-where 
+impl<'a, T, W, Z> DFSPostOrderIterator<'a, T, W, Z>
+where
     T: NodeTaxa,
     W: EdgeWeight,
     Z: NodeWeight,
 {
     /// Creates a new DFS postfix iterator of a tree
     pub fn new(
-        tree: &'a impl RootedTree<Node = Node<T,W,Z>>,
+        tree: &'a impl RootedTree<Node = Node<T, W, Z>>,
         start_id: usize,
-    ) -> DFSPostOrderIterator<'a,T,W,Z> {
+    ) -> DFSPostOrderIterator<'a, T, W, Z> {
         let max_id = tree.get_node_ids().max().unwrap();
         let mut nodes = vec![None; max_id + 1];
         tree.get_nodes()
@@ -71,13 +74,13 @@ where
     }
 }
 
-impl<'a,T,W,Z> Iterator for BFSIterator<'a,T,W,Z> 
-where 
+impl<'a, T, W, Z> Iterator for BFSIterator<'a, T, W, Z>
+where
     T: NodeTaxa,
     W: EdgeWeight,
     Z: NodeWeight,
 {
-    type Item = &'a Node<T,W,Z>;
+    type Item = &'a Node<T, W, Z>;
 
     fn next(&mut self) -> Option<Self::Item> {
         match self.stack.pop_front() {
@@ -93,17 +96,17 @@ where
     }
 }
 
-impl<'a,T,W,Z> Iterator for DFSPostOrderIterator<'a,T,W,Z> 
-where 
+impl<'a, T, W, Z> Iterator for DFSPostOrderIterator<'a, T, W, Z>
+where
     T: NodeTaxa,
     W: EdgeWeight,
     Z: NodeWeight,
 {
-    type Item = &'a Node<T,W,Z>;
+    type Item = &'a Node<T, W, Z>;
 
     fn next(&mut self) -> Option<Self::Item> {
         while let Some(node) = self.stack.pop_front() {
-            let node_children: Vec<&'a Node<T,W,Z>> = node
+            let node_children: Vec<&'a Node<T, W, Z>> = node
                 .get_children()
                 .iter()
                 .filter_map(|&chid| self.nodes[chid].take())

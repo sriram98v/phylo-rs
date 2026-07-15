@@ -1,8 +1,7 @@
 use phylo::prelude::*;
-use std::{fs, env};
 use std::error::Error;
 use std::time::Instant;
-
+use std::{env, fs};
 
 fn main() -> Result<(), Box<dyn Error>> {
     let args = env::args().collect::<Vec<_>>();

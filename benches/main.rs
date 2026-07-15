@@ -3,7 +3,6 @@ use phylo::prelude::*;
 use phylo::tree::PhyloTree;
 use rand::{seq::IteratorRandom, thread_rng};
 
-    
 const NORM: u32 = 1;
 
 fn main() {
@@ -27,8 +26,8 @@ fn benchmark_constant_time_lca(bencher: divan::Bencher, taxa_size: usize) {
                     lca_map[x[0]][x[1]] = tree.get_lca_id(vec![l_0, l_1].as_slice());
                     lca_map[x[1]][x[0]] = tree.get_lca_id(vec![l_0, l_1].as_slice())
                 });
-                // .map(|x| (x.clone(), tree.get_lca_id(x.as_slice())))
-                // .collect::<HashMap<_,_>>();
+            // .map(|x| (x.clone(), tree.get_lca_id(x.as_slice())))
+            // .collect::<HashMap<_,_>>();
             (lca_map, leaves)
         })
         .bench_refs(|(lca_map, leaves)| {
@@ -61,7 +60,10 @@ fn benchmark_spr(bencher: divan::Bencher, taxa_size: usize) {
     bencher
         .with_inputs(|| {
             let tree = PhyloTree::yule(taxa_size);
-            let leaf_edges = tree.get_leaf_ids().map(|l_id| (tree.get_node_parent_id(l_id).unwrap(), l_id)).collect_vec();
+            let leaf_edges = tree
+                .get_leaf_ids()
+                .map(|l_id| (tree.get_node_parent_id(l_id).unwrap(), l_id))
+                .collect_vec();
             let e1 = leaf_edges[0];
             let e2 = leaf_edges[1];
             (tree, e1, e2)
@@ -99,7 +101,7 @@ fn benchmark_rf(bencher: divan::Bencher, taxa_size: usize) {
             let t1 = PhyloTree::yule(taxa_size);
             let t2 = PhyloTree::yule(taxa_size);
 
-            (t1,t2)
+            (t1, t2)
         })
         .bench_refs(|(t1, t2)| {
             let _ = t1.rf(t2);
@@ -113,7 +115,7 @@ fn benchmark_cm(bencher: divan::Bencher, taxa_size: usize) {
             let t1 = PhyloTree::yule(taxa_size);
             let t2 = PhyloTree::yule(taxa_size);
 
-            (t1,t2)
+            (t1, t2)
         })
         .bench_refs(|(t1, t2)| {
             let _ = t1.cm(t2);
@@ -123,22 +125,24 @@ fn benchmark_cm(bencher: divan::Bencher, taxa_size: usize) {
 #[divan::bench(args = [200, 400, 600, 800, 1000, 1200, 1400, 1600, 1800, 2000, 2200, 2400, 2600, 2800, 3000, 3200, 3400, 3600, 3800, 4000, 4200, 4400, 4600, 4800, 5000, 5200, 5400, 5600, 5800, 6000, 6200, 6400, 6600, 6800, 7000, 7200, 7400, 7600, 7800, 8000, 8200, 8400, 8600, 8800, 9000, 9200, 9400, 9600, 9800, 10000])]
 fn benchmark_bps(bencher: divan::Bencher, taxa_size: usize) {
     bencher
-        .with_inputs(|| {
-            
-            PhyloTree::yule(taxa_size)
-        })
+        .with_inputs(|| PhyloTree::yule(taxa_size))
         .bench_refs(|t1| {
-            let _ = t1.get_bipartitions_ids().map(|(c1,c2)| (c1.map(|x| t1.get_node_taxa(x).unwrap()).collect_vec(), c2.map(|x| t1.get_node_taxa(x).unwrap()).collect_vec())).collect_vec();
+            let _ = t1
+                .get_bipartitions_ids()
+                .map(|(c1, c2)| {
+                    (
+                        c1.map(|x| t1.get_node_taxa(x).unwrap()).collect_vec(),
+                        c2.map(|x| t1.get_node_taxa(x).unwrap()).collect_vec(),
+                    )
+                })
+                .collect_vec();
         });
 }
 
 #[divan::bench(args = [200, 400, 600, 800, 1000, 1200, 1400, 1600, 1800, 2000, 2200, 2400, 2600, 2800, 3000, 3200, 3400, 3600, 3800, 4000, 4200, 4400, 4600, 4800, 5000, 5200, 5400, 5600, 5800, 6000, 6200, 6400, 6600, 6800, 7000, 7200, 7400, 7600, 7800, 8000, 8200, 8400, 8600, 8800, 9000, 9200, 9400, 9600, 9800, 10000])]
 fn benchmark_postord_ids(bencher: divan::Bencher, taxa_size: usize) {
     bencher
-        .with_inputs(|| {
-            
-            PhyloTree::yule(taxa_size)
-        })
+        .with_inputs(|| PhyloTree::yule(taxa_size))
         .bench_refs(|t1| {
             let _ = t1.postord_ids(t1.get_root_id()).collect_vec();
         });
@@ -166,7 +170,7 @@ fn benchmark_contract(bencher: divan::Bencher, taxa_size: usize) {
             let taxa_set = (0..taxa_size).collect_vec();
             let taxa_subset = taxa_set
                 .into_iter()
-                .choose_multiple(&mut rng, ((taxa_size as f32)*0.05) as usize);
+                .choose_multiple(&mut rng, ((taxa_size as f32) * 0.05) as usize);
             t1.precompute_constant_time_lca();
             (t1, taxa_subset)
         })
@@ -176,7 +180,7 @@ fn benchmark_contract(bencher: divan::Bencher, taxa_size: usize) {
 }
 
 #[divan::bench(args = [200, 400, 600, 800, 1000, 1200, 1400, 1600, 1800, 2000, 2200, 2400, 2600, 2800, 3000, 3200, 3400, 3600, 3800, 4000, 4200, 4400, 4600, 4800, 5000, 5200, 5400, 5600, 5800, 6000, 6200, 6400, 6600, 6800, 7000, 7200, 7400, 7600, 7800, 8000, 8200, 8400, 8600, 8800, 9000, 9200, 9400, 9600, 9800, 10000])]
-fn new_contract_nodes(bencher: divan::Bencher, taxa_size: usize){
+fn new_contract_nodes(bencher: divan::Bencher, taxa_size: usize) {
     bencher
         .with_inputs(|| {
             let mut rng = thread_rng();
@@ -189,18 +193,15 @@ fn new_contract_nodes(bencher: divan::Bencher, taxa_size: usize){
             (t1, taxa_subset)
         })
         .bench_refs(|(t1, taxa_subset)| {
-            t1.contracted_tree_nodes(taxa_subset.as_slice()).collect_vec();
+            t1.contracted_tree_nodes(taxa_subset.as_slice())
+                .collect_vec();
         });
 }
-
 
 #[divan::bench(args = [200, 400, 600, 800, 1000, 1200, 1400, 1600, 1800, 2000, 2200, 2400, 2600, 2800, 3000, 3200, 3400, 3600, 3800, 4000, 4200, 4400, 4600, 4800, 5000, 5200, 5400, 5600, 5800, 6000, 6200, 6400, 6600, 6800, 7000, 7200, 7400, 7600, 7800, 8000, 8200, 8400, 8600, 8800, 9000, 9200, 9400, 9600, 9800, 10000])]
 fn benchmark_median_node(bencher: divan::Bencher, taxa_size: usize) {
     bencher
-        .with_inputs(|| {
-            
-            PhyloTree::yule(taxa_size)
-        })
+        .with_inputs(|| PhyloTree::yule(taxa_size))
         .bench_refs(|t1| {
             let _ = t1.get_median_node();
         });

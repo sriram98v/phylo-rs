@@ -1,8 +1,7 @@
 use phylo::prelude::*;
-use std::{fs, env};
 use std::error::Error;
 use std::time::Instant;
-
+use std::{env, fs};
 
 fn main() -> Result<(), Box<dyn Error>> {
     let args = env::args().collect::<Vec<_>>();
@@ -10,11 +9,13 @@ fn main() -> Result<(), Box<dyn Error>> {
     let input_str: String = fs::read_to_string(args[1].clone())?;
 
     let mut tree = PhyloTree::from_newick(input_str.as_bytes())?;
-    let leaf_edges = tree.get_leaf_ids().map(|l_id| (tree.get_node_parent_id(l_id).unwrap(), l_id)).filter(|(p_id, _)| p_id !=&tree.get_root_id()).collect::<Vec<_>>();
+    let leaf_edges = tree
+        .get_leaf_ids()
+        .map(|l_id| (tree.get_node_parent_id(l_id).unwrap(), l_id))
+        .filter(|(p_id, _)| p_id != &tree.get_root_id())
+        .collect::<Vec<_>>();
     let node_id = leaf_edges[0].0;
 
-
-    
     let now = Instant::now();
 
     let success = tree.nni(node_id, true);
