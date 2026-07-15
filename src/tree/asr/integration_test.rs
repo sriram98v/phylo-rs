@@ -1,11 +1,11 @@
 //! Integration tests for ancestral sequence reconstruction, adapted from treetime test suite.
 //! Reference: https://github.com/neherlab/treetime/blob/master/test/test_treetime.py
 
+use crate::models::GtrModel;
 use crate::node::NodeID;
 use crate::prelude::*;
 use crate::tree::asr::alignment::Alignment;
 use crate::tree::asr::alphabet::{Alphabet, Nucleotide};
-use crate::tree::asr::gtr::GtrModel;
 use crate::tree::asr::reconstruction::Reconstruction;
 use crate::tree::PhyloTree;
 use std::collections::HashMap;
@@ -115,7 +115,7 @@ fn test_amino_acid_ambiguity_profiles() {
 #[test]
 fn test_gtr_jc_p_zero_is_identity() {
     let model = GtrModel::<Nucleotide>::jukes_cantor().unwrap();
-    let p_t = model.transition(0.0);
+    let p_t = model.category_transition(0, 0.0);
 
     for i in 0..4 {
         if i == 0 {
@@ -130,7 +130,7 @@ fn test_gtr_jc_p_zero_is_identity() {
 fn test_gtr_jc_row_sums_to_one() {
     let model = GtrModel::<Nucleotide>::jukes_cantor().unwrap();
     for t in [0.1, 0.5, 1.0, 2.0, 5.0, 10.0] {
-        let p_t = model.transition(t);
+        let p_t = model.category_transition(0, t);
         for i in 0..4 {
             let sum: f64 = (0..4).map(|j| p_t[(i, j)]).sum();
             assert!(
@@ -148,7 +148,7 @@ fn test_gtr_jc_row_sums_to_one() {
 fn test_gtr_jc_positive_entries() {
     let model = GtrModel::<Nucleotide>::jukes_cantor().unwrap();
     for t in [0.001, 0.5, 2.0, 10.0] {
-        let p_t = model.transition(t);
+        let p_t = model.category_transition(0, t);
         for i in 0..4 {
             for j in 0..4 {
                 assert!(
@@ -168,7 +168,7 @@ fn test_gtr_jc_positive_entries() {
 fn test_gtr_p_infinity_converges_to_pi() {
     let model = GtrModel::<Nucleotide>::jukes_cantor().unwrap();
     let pi = model.equilibrium();
-    let p_inf = model.transition(100.0); // large t
+    let p_inf = model.category_transition(0, 100.0); // large t
 
     for i in 0..4 {
         for j in 0..4 {
@@ -188,7 +188,7 @@ fn test_gtr_p_infinity_converges_to_pi() {
 #[test]
 fn test_gtr_q_rows_sum_zero() {
     let model = GtrModel::<Nucleotide>::jukes_cantor().unwrap();
-    let p_small = model.transition(1e-10);
+    let p_small = model.category_transition(0, 1e-10);
     for i in 0..4 {
         let sum: f64 = (0..4).map(|j| p_small[(i, j)]).sum();
         assert!((sum - 1.0).abs() < 1e-8);
@@ -201,7 +201,7 @@ fn test_gtr_detailed_balance() {
     let pi = model.equilibrium();
 
     for t in [0.1, 0.5, 1.0, 5.0] {
-        let p_t = model.transition(t);
+        let p_t = model.category_transition(0, t);
 
         // For JC, pi is uniform so pi^T P(t) should equal pi
         let result: Vec<f64> = (0..4usize)

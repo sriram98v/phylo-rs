@@ -183,12 +183,16 @@ pub mod node;
 /// Module with tree traits and structs
 pub mod tree;
 
+/// Module with substitution models for molecular evolution (GTR+I+G and special cases).
+pub mod models;
+
 /// Prelude module that imports all active and tested traits along with any required struct and type alias.
 pub mod prelude {
     #[doc(no_inline)]
     pub use crate::error::*;
     #[doc(no_inline)]
     pub use crate::iter::node_iter::*;
+    pub use crate::models::*;
     #[doc(no_inline)]
     pub use crate::node::{simple_rnode::*, Node, PhyloNode};
     #[doc(no_inline)]
