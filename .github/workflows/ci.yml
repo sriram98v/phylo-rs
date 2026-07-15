@@ -19,3 +19,13 @@ jobs:
       - run: cargo build
       - run: cargo test
       - run: cargo bench --no-run
+  msrv:
+    name: Check MSRV
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # Keep in step with rust-version in Cargo.toml. `check` rather than
+      # `test`: rust-version is a promise to consumers, who build the library
+      # but never compile the dev-dependencies.
+      - run: rustup toolchain install 1.80 --profile minimal && rustup default 1.80
+      - run: cargo check --all-features

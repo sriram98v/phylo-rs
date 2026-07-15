@@ -46,8 +46,8 @@ body:
     id: rust-version
     attributes:
       label: Rust version
-      description: Output of `rustc --version`. The minimum supported version is 1.85.
-      placeholder: "rustc 1.85.0"
+      description: Output of `rustc --version`. The minimum supported version is 1.80.
+      placeholder: "rustc 1.80.0"
     validations:
       required: true
 

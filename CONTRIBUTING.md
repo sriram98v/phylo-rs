@@ -15,8 +15,10 @@ cargo build
 cargo test
 ```
 
-The minimum supported Rust version is **1.85**, declared as `rust-version` in
-`Cargo.toml`. CI builds on stable.
+The minimum supported Rust version is **1.80**, declared as `rust-version` in
+`Cargo.toml` and checked by CI. Day-to-day development happens on stable — the
+test suite needs 1.85 or newer, because `proptest` does. The lower MSRV is a
+promise to people who *use* the library, who never build our dev-dependencies.
 
 ## Development commands
 
