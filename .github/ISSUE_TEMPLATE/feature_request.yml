@@ -1,0 +1,51 @@
+name: Feature request
+description: Suggest an algorithm, metric, or capability for phylo-rs
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the suggestion. If you are proposing a published method, a
+        citation helps a lot — it tells us exactly which variant you mean.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+      description: >
+        Describe the analysis you are trying to do and where phylo-rs currently
+        falls short.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: >
+        What should the API look like? A sketch of the call you would like to
+        write is ideal.
+    validations:
+      required: false
+
+  - type: input
+    id: citation
+    attributes:
+      label: Reference
+      description: Paper, DOI, or link describing the method, if there is one.
+    validations:
+      required: false
+
+  - type: dropdown
+    id: contributing
+    attributes:
+      label: Would you be willing to implement this?
+      description: >
+        Entirely optional, and not a condition of the request being considered.
+      options:
+        - "Not sure"
+        - "Yes, with some guidance"
+        - "Yes"
+        - "No"
+    validations:
+      required: false
