@@ -97,11 +97,16 @@ where
     Z: NodeWeight,
 {
     /// Returns a reference to the inner Arc for shared ownership with the taxa map.
+    ///
+    /// Only `SimpleRootedTree` shares taxa this way, so this is dead code
+    /// without the feature that defines it.
+    #[cfg(feature = "simple_rooted_tree")]
     pub(crate) fn get_taxa_arc(&self) -> Option<&Arc<T>> {
         self.taxa.as_ref()
     }
 
     /// Sets the taxa field from a pre-built Arc, sharing ownership with the taxa map.
+    #[cfg(feature = "simple_rooted_tree")]
     pub(crate) fn set_taxa_arc(&mut self, taxa: Option<Arc<T>>) {
         self.taxa = taxa;
     }

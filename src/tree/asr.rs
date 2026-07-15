@@ -26,14 +26,15 @@ pub use self::alphabet::Alphabet;
 pub use self::gtr::GtrModel;
 pub use self::reconstruction::Reconstruction;
 
-use self::profile::Profile;
 use crate::error::AsrError;
-use crate::node::NodeID;
-use crate::prelude::*;
-use crate::tree::PhyloTree;
-use nalgebra::DVector;
-use num_traits::NumCast;
-use std::collections::HashMap;
+
+// Used only by the concrete PhyloTree reconstructions below. The traits
+// themselves are usable without `simple_rooted_tree`.
+#[cfg(feature = "simple_rooted_tree")]
+use {
+    self::profile::Profile, crate::node::NodeID, crate::prelude::*, crate::tree::PhyloTree,
+    nalgebra::DVector, num_traits::NumCast, std::collections::HashMap,
+};
 
 /// Trait for performing marginal ancestral sequence reconstruction.
 pub trait MarginalAsr {
@@ -57,6 +58,11 @@ pub trait JointAsr {
 }
 
 /// Internal implementation of Marginal ASR logic.
+///
+/// Concrete in `PhyloTree`, so it is gated on the feature that defines it. The
+/// `MarginalAsr` trait itself stays available without that feature, for callers
+/// bringing their own tree type.
+#[cfg(feature = "simple_rooted_tree")]
 pub fn compute_marginal_asr<A>(
     tree: &PhyloTree,
     model: &GtrModel<A>,
@@ -223,6 +229,10 @@ where
 }
 
 /// Implementation of Joint ASR logic (Viterbi).
+///
+/// Concrete in `PhyloTree`, so it is gated on the feature that defines it. The
+/// `JointAsr` trait itself stays available without that feature.
+#[cfg(feature = "simple_rooted_tree")]
 pub fn compute_joint_asr<A>(
     tree: &PhyloTree,
     model: &GtrModel<A>,
