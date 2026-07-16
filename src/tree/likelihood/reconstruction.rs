@@ -14,7 +14,7 @@ pub struct Reconstruction<A> {
     pub alphabet: std::marker::PhantomData<A>,
 }
 
-impl<A: crate::tree::asr::alphabet::Alphabet> Reconstruction<A> {
+impl<A: crate::alphabet::Alphabet> Reconstruction<A> {
     /// Returns the sequence for a specific node as a String of canonical characters.
     pub fn sequence_string(&self, node: NodeID) -> Option<String> {
         let seq = self.sequences.get(&node)?;

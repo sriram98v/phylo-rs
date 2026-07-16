@@ -37,4 +37,7 @@ pub enum AsrError {
     /// Numerical instability encountered during scaling
     #[error("numerical instability encountered during ASR scaling")]
     NumericalInstability,
+    /// A substitution model parameter (e.g. kappa, alpha, p_inv) was out of range
+    #[error("invalid model parameter: {0}")]
+    InvalidModelParameter(String),
 }

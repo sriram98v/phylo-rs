@@ -174,6 +174,10 @@
 //!
 //!
 
+/// Module with multiple sequence alignments and column compression.
+pub mod alignment;
+/// Module with sequence alphabets (nucleotides, amino acids).
+pub mod alphabet;
 /// Module with errors.
 pub mod error;
 /// Module with tree traversal iterator traits and structs
@@ -183,12 +187,20 @@ pub mod node;
 /// Module with tree traits and structs
 pub mod tree;
 
+/// Module with substitution models for molecular evolution (GTR+I+G and special cases).
+pub mod models;
+
 /// Prelude module that imports all active and tested traits along with any required struct and type alias.
 pub mod prelude {
+    #[doc(no_inline)]
+    pub use crate::alignment::*;
+    #[doc(no_inline)]
+    pub use crate::alphabet::*;
     #[doc(no_inline)]
     pub use crate::error::*;
     #[doc(no_inline)]
     pub use crate::iter::node_iter::*;
+    pub use crate::models::*;
     #[doc(no_inline)]
     pub use crate::node::{simple_rnode::*, Node, PhyloNode};
     #[doc(no_inline)]
@@ -197,6 +209,8 @@ pub mod prelude {
     pub use crate::tree::distances::*;
     #[doc(no_inline)]
     pub use crate::tree::io::*;
+    #[doc(no_inline)]
+    pub use crate::tree::likelihood::*;
     #[doc(no_inline)]
     pub use crate::tree::ops::*;
     #[doc(no_inline)]

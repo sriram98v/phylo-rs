@@ -5,6 +5,8 @@ pub mod asr;
 pub mod distances;
 /// Module with traits and structs for tree encoding
 pub mod io;
+/// Module with phylogenetic likelihood under a substitution model
+pub mod likelihood;
 /// Module with traits and structs for tree operations
 pub mod ops;
 /// Module with traits and structs for general tree traits
@@ -48,7 +50,7 @@ mod simple_rooted_tree {
             aln: &Alignment,
             want_posteriors: bool,
         ) -> Result<Reconstruction<A>, AsrError> {
-            crate::tree::asr::compute_marginal_asr(self, model, aln, want_posteriors)
+            crate::tree::likelihood::compute_marginal_asr(self, model, aln, want_posteriors)
         }
     }
 
@@ -58,7 +60,7 @@ mod simple_rooted_tree {
             model: &GtrModel<A>,
             aln: &Alignment,
         ) -> Result<Reconstruction<A>, AsrError> {
-            crate::tree::asr::compute_joint_asr(self, model, aln)
+            crate::tree::likelihood::compute_joint_asr(self, model, aln)
         }
     }
 

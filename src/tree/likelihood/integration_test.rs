@@ -1,12 +1,12 @@
 //! Integration tests for ancestral sequence reconstruction, adapted from treetime test suite.
 //! Reference: https://github.com/neherlab/treetime/blob/master/test/test_treetime.py
 
+use crate::alignment::Alignment;
+use crate::alphabet::{Alphabet, Nucleotide};
+use crate::models::GtrModel;
 use crate::node::NodeID;
 use crate::prelude::*;
-use crate::tree::asr::alignment::Alignment;
-use crate::tree::asr::alphabet::{Alphabet, Nucleotide};
-use crate::tree::asr::gtr::GtrModel;
-use crate::tree::asr::reconstruction::Reconstruction;
+use crate::tree::likelihood::reconstruction::Reconstruction;
 use crate::tree::PhyloTree;
 use std::collections::HashMap;
 
@@ -74,7 +74,7 @@ fn test_nucleotide_char_of() {
 
 #[test]
 fn test_amino_acid_canonical() {
-    use crate::tree::asr::alphabet::AminoAcid;
+    use crate::alphabet::AminoAcid;
 
     for (i, c) in AminoAcid::CANONICAL.iter().enumerate() {
         assert_eq!(AminoAcid::char_of(i), *c);
@@ -84,7 +84,7 @@ fn test_amino_acid_canonical() {
 
 #[test]
 fn test_amino_acid_ambiguity_profiles() {
-    use crate::tree::asr::alphabet::AminoAcid;
+    use crate::alphabet::AminoAcid;
 
     // B = D or N
     let b = AminoAcid::profile(b'B').unwrap();
@@ -115,7 +115,7 @@ fn test_amino_acid_ambiguity_profiles() {
 #[test]
 fn test_gtr_jc_p_zero_is_identity() {
     let model = GtrModel::<Nucleotide>::jukes_cantor().unwrap();
-    let p_t = model.transition(0.0);
+    let p_t = model.category_transition(0, 0.0);
 
     for i in 0..4 {
         if i == 0 {
@@ -130,7 +130,7 @@ fn test_gtr_jc_p_zero_is_identity() {
 fn test_gtr_jc_row_sums_to_one() {
     let model = GtrModel::<Nucleotide>::jukes_cantor().unwrap();
     for t in [0.1, 0.5, 1.0, 2.0, 5.0, 10.0] {
-        let p_t = model.transition(t);
+        let p_t = model.category_transition(0, t);
         for i in 0..4 {
             let sum: f64 = (0..4).map(|j| p_t[(i, j)]).sum();
             assert!(
@@ -148,7 +148,7 @@ fn test_gtr_jc_row_sums_to_one() {
 fn test_gtr_jc_positive_entries() {
     let model = GtrModel::<Nucleotide>::jukes_cantor().unwrap();
     for t in [0.001, 0.5, 2.0, 10.0] {
-        let p_t = model.transition(t);
+        let p_t = model.category_transition(0, t);
         for i in 0..4 {
             for j in 0..4 {
                 assert!(
@@ -168,7 +168,7 @@ fn test_gtr_jc_positive_entries() {
 fn test_gtr_p_infinity_converges_to_pi() {
     let model = GtrModel::<Nucleotide>::jukes_cantor().unwrap();
     let pi = model.equilibrium();
-    let p_inf = model.transition(100.0); // large t
+    let p_inf = model.category_transition(0, 100.0); // large t
 
     for i in 0..4 {
         for j in 0..4 {
@@ -188,7 +188,7 @@ fn test_gtr_p_infinity_converges_to_pi() {
 #[test]
 fn test_gtr_q_rows_sum_zero() {
     let model = GtrModel::<Nucleotide>::jukes_cantor().unwrap();
-    let p_small = model.transition(1e-10);
+    let p_small = model.category_transition(0, 1e-10);
     for i in 0..4 {
         let sum: f64 = (0..4).map(|j| p_small[(i, j)]).sum();
         assert!((sum - 1.0).abs() < 1e-8);
@@ -201,7 +201,7 @@ fn test_gtr_detailed_balance() {
     let pi = model.equilibrium();
 
     for t in [0.1, 0.5, 1.0, 5.0] {
-        let p_t = model.transition(t);
+        let p_t = model.category_transition(0, t);
 
         // For JC, pi is uniform so pi^T P(t) should equal pi
         let result: Vec<f64> = (0..4usize)
@@ -610,13 +610,13 @@ fn test_compression_re_expansion() {
 
 #[test]
 fn test_amino_acid_n_states() {
-    use crate::tree::asr::alphabet::AminoAcid;
+    use crate::alphabet::AminoAcid;
     assert_eq!(AminoAcid::N_STATES, 20);
 }
 
 #[test]
 fn test_nucleotide_n_states() {
-    use crate::tree::asr::alphabet::Nucleotide;
+    use crate::alphabet::Nucleotide;
     assert_eq!(Nucleotide::N_STATES, 4);
 }
 
@@ -628,7 +628,7 @@ fn test_nucleotide_n_states() {
 fn test_profile_scaling_stability() {
     // Test that scaling handles very small values correctly
     let tiny = vec![1e-300, 2e-300, 3e-300];
-    let profile = crate::tree::asr::profile::Profile::new(tiny, 0.0).scale();
+    let profile = crate::tree::likelihood::profile::Profile::new(tiny, 0.0).scale();
 
     // After scaling by max (3e-300), values should be normalized
     assert!((profile.values[2] - 1.0).abs() < 1e-15);
@@ -642,7 +642,7 @@ fn test_profile_log_likelihood_with_scale() {
     // Values [0.1, 0.2, 0.3, 0.4], scale = ln(10)
     let vals = vec![0.1, 0.2, 0.3, 0.4];
     let scale = 10.0f64.ln();
-    let profile = crate::tree::asr::profile::Profile::new(vals, scale);
+    let profile = crate::tree::likelihood::profile::Profile::new(vals, scale);
 
     // sum(values) = 1.0, ln(1.0) + scale = scale
     assert!((profile.total_log_likelihood() - scale).abs() < 1e-10);
