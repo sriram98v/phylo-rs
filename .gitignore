@@ -17,3 +17,6 @@ comparison/gotree/time/*
 *.csv
 *.png
 *.eps
+
+# Output written by the phylogenetic-diversity example when it is run.
+/examples/phylogenetic-diversity/pds.out
