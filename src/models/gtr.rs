@@ -1,7 +1,7 @@
+use crate::alphabet::{Alphabet, Nucleotide};
 use crate::error::AsrError;
 use crate::models::gamma::discrete_gamma;
 use crate::models::rate_matrix::RateMatrix;
-use crate::tree::asr::alphabet::{Alphabet, Nucleotide};
 use nalgebra::DMatrix;
 
 /// A single rate category in a rate-heterogeneous substitution model: a relative
@@ -314,7 +314,7 @@ fn ti_tv_matrix(kappa: f64, tv: f64) -> DMatrix<f64> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tree::asr::alphabet::Nucleotide;
+    use crate::alphabet::Nucleotide;
 
     #[test]
     fn test_jc_transition() {
