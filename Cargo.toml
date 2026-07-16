@@ -1,6 +1,6 @@
 [package]
 name = "phylo"
-version = "4.0.0"
+version = "4.0.1"
 edition = "2021"
 rust-version = "1.87"
 
@@ -14,6 +14,22 @@ description = "An extensible Phylogenetics library written in rust"
 
 keywords = ["bioinformatics", "phylogenetics"]
 categories = ["data-structures", "science"]
+
+# Keep files that are not part of the crate out of the published package.
+exclude = [
+    # Claude Code project files: developer tooling, not library content.
+    "/CLAUDE.md",
+    "/.claude",
+    # Benchmark harness for comparing against other tools -- data dumps, other
+    # tools' binaries, a git submodule. Over 1300 files, none of them the crate.
+    "/comparison",
+    # Repository and CI plumbing, useful only when developing phylo itself.
+    "/.github",
+    "/.gitignore",
+    "/.git-blame-ignore-revs",
+    # Its only entry lived under comparison/, so it now points at nothing shipped.
+    "/.gitmodules",
+]
 
 [lib]
 name = "phylo"
