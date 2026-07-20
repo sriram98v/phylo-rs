@@ -1,13 +1,16 @@
 //! Phylogenetic likelihood under a substitution model.
 //!
-//! Felsenstein's pruning algorithm over a tree and an [`Alignment`], generalized
-//! across the rate categories of a [`GtrModel`].
+//! Felsenstein's pruning algorithm over a tree and an
+//! [`Alignment`](crate::alignment::Alignment), generalized across the rate
+//! categories of a [`GtrModel`](crate::models::GtrModel).
 //!
-//! [`compute_log_likelihood`] returns just the tree's log-likelihood — the
-//! Felsenstein up pass, no ancestral states. [`compute_marginal_asr`] reuses the
-//! same per-pattern pruning core (`prune_pattern_category`) and adds a pre-order
-//! down pass to reconstruct states and posteriors, so the two never drift. The
-//! [`TreeLikelihood`] trait exposes the likelihood-only path.
+//! [`compute_log_likelihood`](crate::tree::likelihood::compute_log_likelihood)
+//! returns just the tree's log-likelihood — the Felsenstein up pass, no ancestral
+//! states. [`compute_marginal_asr`](crate::tree::likelihood::compute_marginal_asr)
+//! reuses the same per-pattern pruning core (`prune_pattern_category`) and adds a
+//! pre-order down pass to reconstruct states and posteriors, so the two never
+//! drift. The [`TreeLikelihood`](crate::tree::likelihood::TreeLikelihood) trait
+//! exposes the likelihood-only path.
 //!
 //! The joint (Viterbi) engine keeps its own recursion: it maximizes rather than
 //! sums over states (a different semiring), so it cannot share the marginal core.
@@ -143,7 +146,7 @@ fn prune_pattern_category<A: Alphabet>(
 ///
 /// Felsenstein's pruning up pass only: for each compressed alignment pattern the
 /// per-category log-likelihoods (`prune_pattern_category`) are mixed with
-/// [`log_sum_exp`] and accumulated by pattern multiplicity. No down pass, and no
+/// `log_sum_exp` and accumulated by pattern multiplicity. No down pass, and no
 /// per-node sequence/posterior allocation — unlike [`compute_marginal_asr`], whose
 /// `log_likelihood` field this reproduces exactly.
 ///
