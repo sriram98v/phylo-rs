@@ -37,6 +37,9 @@ implement one.
   immutably and answers LCA queries in O(1) via an Euler tour + RMQ.
 - **Tree comparison** — Robinson-Foulds, weighted RF, cluster affinity, and
   cophenetic distance, with distance-matrix builders.
+- **Maximum-likelihood modeling** — GTR+I+G substitution models (JC69 through
+  GTR), Felsenstein-pruning log-likelihood, and marginal/joint ancestral
+  sequence reconstruction.
 - **I/O** — Newick and Nexus parsing and serialization.
 - **Simulation** — random trees (Yule, uniform).
 - **Optional parallelism** — opt into `rayon`-backed computation with the
@@ -59,8 +62,8 @@ phylo = "5"
 
 | Feature | Default | Description |
 | --- | :---: | --- |
-| `simple_rooted_tree` | ✅ | The concrete `SimpleRootedTree` / `PhyloTree` implementation. |
-| `non_crypto_hash` | ✅ | Use `fxhash` maps/sets instead of `std` for speed. |
+| `simple_rooted_tree` | Yes | The concrete `SimpleRootedTree` / `PhyloTree` implementation. |
+| `non_crypto_hash` | Yes | Use `fxhash` maps/sets instead of `std` for speed. |
 | `parallel` | | `rayon`-based parallel computation for the heavy metrics. |
 | `serde` | | `Serialize`/`Deserialize` for trees. |
 
@@ -148,6 +151,36 @@ let cluster_affinity = tree_1.ca(&tree_2);
 let cophenetic = tree_1.cophen_dist(&tree_2, 2);
 ```
 
+### Likelihood and ancestral reconstruction
+
+Score an alignment against a tree under a substitution model, or reconstruct
+ancestral sequences at the internal nodes. `log_likelihood` runs Felsenstein's
+pruning algorithm alone (no reconstruction); `marginal_asr` / `joint_asr` build
+on the same pruning core:
+
+```rust
+use phylo::prelude::*;
+
+let tree = PhyloTree::from_newick("((A:0.1,B:0.2):0.15,(C:0.3,D:0.1):0.05);".as_bytes()).unwrap();
+
+// A nucleotide alignment in FASTA — one sequence per leaf taxon.
+let fasta = b">A\nACGTACGT\n>B\nACGTATGT\n>C\nACGAACGT\n>D\nTCGTACGA\n";
+let aln = Alignment::from_fasta_bytes(fasta).unwrap();
+
+// HKY85 with gamma-distributed rate heterogeneity (+G, 4 categories).
+let model = GtrModel::<Nucleotide>::hky85([0.25, 0.25, 0.25, 0.25], 2.0)
+    .unwrap()
+    .with_gamma(0.5, 4)
+    .unwrap();
+
+// Log-likelihood of the alignment given the tree and model (pruning only).
+let log_lik = tree.log_likelihood::<Nucleotide>(&model, &aln).unwrap();
+
+// Marginal ancestral sequence reconstruction fills the internal nodes.
+let recon = tree.marginal_asr::<Nucleotide>(&model, &aln, false).unwrap();
+let root_sequence = recon.sequence_string(tree.get_root_id());
+```
+
 ## Module map
 
 | Module | What it does |
@@ -158,6 +191,9 @@ let cophenetic = tree_1.cophen_dist(&tree_2, 2);
 | [`tree::io`](https://docs.rs/phylo/latest/phylo/tree/io/) | Newick and Nexus reading/writing. |
 | [`tree::simulation`](https://docs.rs/phylo/latest/phylo/tree/simulation/) | Random tree generation. |
 | [`iter`](https://docs.rs/phylo/latest/phylo/iter/) | Traversals, Euler walks, and the LCA oracle. |
+| [`models`](https://docs.rs/phylo/latest/phylo/models/) | GTR+I+G substitution models and their named special cases. |
+| [`tree::likelihood`](https://docs.rs/phylo/latest/phylo/tree/likelihood/) | Felsenstein-pruning log-likelihood. |
+| [`tree::asr`](https://docs.rs/phylo/latest/phylo/tree/asr/) | Marginal and joint ancestral sequence reconstruction. |
 
 ## Examples
 

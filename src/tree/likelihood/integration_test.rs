@@ -647,3 +647,60 @@ fn test_profile_log_likelihood_with_scale() {
     // sum(values) = 1.0, ln(1.0) + scale = scale
     assert!((profile.total_log_likelihood() - scale).abs() < 1e-10);
 }
+
+// ===========================================================================
+// TreeLikelihood tests (pruning-only log-likelihood)
+// ===========================================================================
+
+/// The 1a correctness guard: the standalone `log_likelihood` must equal the
+/// `log_likelihood` field produced by full marginal reconstruction, across the
+/// range of model complexity (JC69, HKY85, GTR+G) — proving the shared pruning
+/// core did not change the marginal numbers.
+#[test]
+fn test_log_likelihood_matches_marginal_asr() {
+    let tree = build_tiny_tree();
+    let aln_data =
+        b">A\nACGTACGTACGTACGT\n>B\nAGGTAGGTAGGTAGGT\n>C\nACGTACGTACGTACGT\n>D\nTTTTTTTTTTTTTTTT\n";
+    let aln = Alignment::from_fasta_bytes(aln_data).unwrap();
+
+    let jc69 = GtrModel::<Nucleotide>::jukes_cantor().unwrap();
+    let hky85 = GtrModel::<Nucleotide>::hky85([0.3, 0.2, 0.2, 0.3], 2.5).unwrap();
+    let gtr_g = GtrModel::<Nucleotide>::gtr([0.3, 0.2, 0.2, 0.3], [1.0, 2.5, 1.0, 1.0, 2.5, 1.0])
+        .unwrap()
+        .with_gamma(0.5, 4)
+        .unwrap();
+
+    for model in [jc69, hky85, gtr_g] {
+        let direct = tree.log_likelihood::<Nucleotide>(&model, &aln).unwrap();
+        let via_asr = tree
+            .marginal_asr::<Nucleotide>(&model, &aln, false)
+            .unwrap()
+            .log_likelihood;
+        assert!(
+            (direct - via_asr).abs() < 1e-9,
+            "log_likelihood {direct} != marginal_asr log_likelihood {via_asr}"
+        );
+    }
+}
+
+#[test]
+fn test_log_likelihood_finite() {
+    let tree = build_tiny_tree();
+    let model = GtrModel::<Nucleotide>::jukes_cantor().unwrap();
+    let aln_data = b">A\nACGT\n>B\nAGGT\n>C\nACGT\n>D\nTTTT\n";
+    let aln = Alignment::from_fasta_bytes(aln_data).unwrap();
+
+    let ll = tree.log_likelihood::<Nucleotide>(&model, &aln).unwrap();
+    assert!(ll.is_finite());
+}
+
+#[test]
+fn test_log_likelihood_missing_taxon_errors() {
+    let tree = build_tiny_tree();
+    let model = GtrModel::<Nucleotide>::jukes_cantor().unwrap();
+    // Taxon 'X' is not in the tree, and 'D' is missing.
+    let aln_data = b">A\nACGT\n>B\nAGGT\n>C\nAAAA\n>X\nTTTT\n";
+    let aln = Alignment::from_fasta_bytes(aln_data).unwrap();
+
+    assert!(tree.log_likelihood::<Nucleotide>(&model, &aln).is_err());
+}

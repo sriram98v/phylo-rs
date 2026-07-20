@@ -1,175 +1,212 @@
 #![warn(missing_docs)]
 
-//! The phylo crate aims to be useful when dealing with phylogenetic trees and analysis.
-//! It can be used to build such trees or read then from newick files, and perform phylogenetic anaysis.
+//! A fast, extensible, WebAssembly-ready phylogenetics library for Rust.
 //!
-//! # A note on implementation
+//! `phylo` provides memory-efficient data structures and algorithms for
+//! phylogenetic analysis and inference — from tree manipulation (SPR, NNI,
+//! rerooting) to tree statistics (phylogenetic diversity, RF distance, cophenetic
+//! distance) to maximum-likelihood modelling (GTR+I+G substitution models,
+//! Felsenstein pruning, ancestral reconstruction). It leans on Rust's memory
+//! safety, speed, and native WebAssembly support to stay both fast and portable.
 //!
-//! Implementation of tree-like structures in rust can be difficult and time-intensive. Additionally implementing
-//! tree traversals and operations on tree structures (recursive or otherwise) can be an even bigger task.
+//! Tree traversals and operations are exposed as **derivable traits**, so you get
+//! DFS/BFS/pre-/post-order, Euler tours, LCA queries, and distance metrics for
+//! free on your own types — and a ready-made [`PhyloTree`](crate::tree::PhyloTree)
+//! when you don't want to implement one.
 //!
-//! This crate aims to implement a majority of such methods as easily-derivable traits, so you don't have to implement them from scratch where they are not needed.
-//!   
-//! **We also provide a struct so you don't have to implement one...**  
+//! # Highlights
 //!
-//! # Using `phylo`
-//! Most of the functionality is implemented in [`crate::tree::simple_rtree`]. The
-//! [`crate::tree::ops`] module is used to dealt with phylolgenetic analysis that require tree mutations such as SPR, NNI, etc.
-//! [`crate::tree::simulation`] module is used to simulate random trees
-//! [`crate::tree::io`] module is used to read trees from various encodings
-//! [`crate::tree::distances`] module is used to compute various types of distance between nodes in a tree and between trees
-//! [`crate::iter`] is a helper module to provide tree traversals and iterations.
+//! - **Trait-first design** — compose narrow traits (`RootedTree`,
+//!   `RootedMetaTree`, `EulerWalk`, `DFS`, `Clusters`, …) onto any type, or use
+//!   the batteries-included [`PhyloTree`](crate::tree::PhyloTree).
+//! - **Arena-allocated trees** — cache-friendly `Vec`-backed storage with `usize`
+//!   node IDs.
+//! - **Constant-time LCA** — an [`LcaOracle`](crate::iter::lca::LcaOracle) borrows
+//!   the tree immutably and answers LCA queries in O(1) via an Euler tour + RMQ.
+//! - **Tree comparison** — Robinson-Foulds, weighted RF, cluster affinity, and
+//!   cophenetic distance, with distance-matrix builders.
+//! - **Maximum-likelihood modelling** — GTR+I+G substitution models (JC69 through
+//!   GTR), Felsenstein-pruning log-likelihood, and marginal/joint ancestral
+//!   sequence reconstruction.
+//! - **I/O** — Newick and Nexus parsing and serialization.
+//! - **Simulation** — random trees (Yule, uniform).
+//! - **Optional parallelism** — opt into `rayon`-backed computation with the
+//!   `parallel` feature.
 //!
-//! ## Building trees
-//! The simplest way to build a tree is to create an empty tree, add a root node and
-//! then add children to the various added nodes:
+//! # Feature flags
+//!
+//! | Feature | Default | Description |
+//! | --- | :---: | --- |
+//! | `simple_rooted_tree` | Yes | The concrete `SimpleRootedTree` / `PhyloTree` implementation. |
+//! | `non_crypto_hash` | Yes | Use `fxhash` maps/sets instead of `std` for speed. |
+//! | `parallel` | | `rayon`-based parallel computation for the heavy metrics. |
+//! | `serde` | | `Serialize`/`Deserialize` for trees. |
+//!
+//! # Quick start
+//!
+//! Everything you need is in the prelude:
+//!
+//! ```
+//! use phylo::prelude::*;
+//! ```
+//!
+//! ## Build a tree
+//!
+//! Create an empty tree, then attach children to node IDs:
 //!
 //! ```
 //! use phylo::prelude::*;
 //!
 //! let mut tree = PhyloTree::new(1);
 //!
-//! let new_node = PhyloNode::new(2);
-//! tree.add_child(tree.get_root_id(), new_node);
-//! let new_node = PhyloNode::new(3);
-//! tree.add_child(tree.get_root_id(), new_node);
-//! let new_node: PhyloNode = PhyloNode::new(4);
-//! tree.add_child(2, new_node);
-//! let new_node: PhyloNode = PhyloNode::new(5);
-//! tree.add_child(2, new_node);
+//! tree.add_child(tree.get_root_id(), PhyloNode::new(2));
+//! tree.add_child(tree.get_root_id(), PhyloNode::new(3));
+//! tree.add_child(2, PhyloNode::new(4));
+//! tree.add_child(2, PhyloNode::new(5));
 //! ```
 //!
-//! ## Reading and writing trees
-//! This library can build trees strings (or files) encoded in the
-//! [newick](https://en.wikipedia.org/wiki/Newick_format) format:
+//! ## Read and write Newick
+//!
 //! ```
 //! use phylo::prelude::*;
 //!
-//! let input_str = String::from("((A:0.1,B:0.2),C:0.6);");
-//! let tree = PhyloTree::from_newick(input_str.as_bytes()).unwrap();
+//! let tree = PhyloTree::from_newick("((A:0.1,B:0.2),C:0.6);".as_bytes()).unwrap();
+//! let newick = tree.to_newick();
 //! ```
 //!
-//! ## Traversing trees
-//! Several traversals are implemented to visit nodes in a particular order. pre-order,
-//! post-order. A traversals returns an [`Iterator`] of either nodes or PhyloNodeID's
-//! in the order they are to be visited in.
+//! ## Traverse
+//!
+//! Traversals return an [`Iterator`] of nodes or node IDs in visiting order:
+//!
 //! ```
 //! use phylo::prelude::*;
 //!
-//! let input_str = String::from("((A:0.1,B:0.2),C:0.6);");
-//! let tree = PhyloTree::from_newick(input_str.as_bytes()).unwrap();
+//! let tree = PhyloTree::from_newick("((A:0.1,B:0.2),C:0.6);".as_bytes()).unwrap();
 //!
-//! let dfs_traversal = tree.dfs(tree.get_root_id()).into_iter();
-//! let bfs_traversal = tree.bfs_ids(tree.get_root_id());
-//! let postfix_traversal = tree.postord_ids(tree.get_root_id());
+//! let dfs = tree.dfs(tree.get_root_id());
+//! let bfs = tree.bfs_ids(tree.get_root_id());
+//! let postorder = tree.postord_ids(tree.get_root_id());
 //! ```
 //!
+//! ## Constant-time LCA
 //!
-//! ## Comparing trees
-//! A number of metrics taking into account topology and branch lenghts are implemented
-//! in order to compare trees with each other:
+//! Build an [`LcaOracle`](crate::iter::lca::LcaOracle) with `tree.lca()`; it
+//! borrows the tree immutably (so staleness is a compile error, not a runtime bug)
+//! and answers queries in O(1):
+//!
+//! ```
+//! use phylo::prelude::*;
+//!
+//! let tree = PhyloTree::from_newick("((A,B),(C,D));".as_bytes()).unwrap();
+//!
+//! let a = tree.get_taxa_node_id(&"A".to_string()).unwrap();
+//! let b = tree.get_taxa_node_id(&"B".to_string()).unwrap();
+//!
+//! let lca = tree.lca();
+//! let ancestor = lca.get_lca_id(&[a, b]);
+//! ```
+//!
+//! ## Compare trees
+//!
+//! Metrics account for both topology and branch lengths:
+//!
 //! ```
 //! use phylo::prelude::*;
 //!
 //! fn depth(tree: &PhyloTree, node_id: usize) -> f32 {
 //!     tree.depth(node_id) as f32
 //! }
-
-//! let newick_1 = "((A:0.1,B:0.2):0.6,(C:0.3,D:0.4):0.5);";
-//! let newick_2 = "((D:0.3,C:0.4):0.5,(B:0.2,A:0.1):0.6);";
 //!
-//! let mut tree_1 = PhyloTree::from_newick(newick_1.as_bytes()).unwrap();
-//! let mut tree_2 = PhyloTree::from_newick(newick_2.as_bytes()).unwrap();
+//! let mut tree_1 = PhyloTree::from_newick("((A:0.1,B:0.2):0.6,(C:0.3,D:0.4):0.5);".as_bytes()).unwrap();
+//! let mut tree_2 = PhyloTree::from_newick("((D:0.3,C:0.4):0.5,(B:0.2,A:0.1):0.6);".as_bytes()).unwrap();
 //!
-//! tree_1.set_zeta(depth);
-//! tree_2.set_zeta(depth);
+//! let _ = tree_1.set_zeta(depth);
+//! let _ = tree_2.set_zeta(depth);
 //!
-//!
-//! let ca = tree_1.ca(&tree_2);
-//! let cophen = tree_1.cophen_dist(&tree_2, 2);
+//! let cluster_affinity = tree_1.ca(&tree_2);
+//! let cophenetic = tree_1.cophen_dist(&tree_2, 2);
 //! ```
+//!
+//! ## Likelihood and ancestral reconstruction
+//!
+//! Score an alignment against a tree under a substitution model, or reconstruct
+//! ancestral sequences at the internal nodes. The log-likelihood path
+//! ([`TreeLikelihood`](crate::tree::likelihood::TreeLikelihood)) runs Felsenstein's
+//! pruning algorithm alone — no reconstruction — while marginal/joint ASR
+//! ([`MarginalAsr`](crate::tree::asr::MarginalAsr) /
+//! [`JointAsr`](crate::tree::asr::JointAsr)) build on the same pruning core:
+//!
+//! ```
+//! use phylo::prelude::*;
+//!
+//! let tree =
+//!     PhyloTree::from_newick("((A:0.1,B:0.2):0.15,(C:0.3,D:0.1):0.05);".as_bytes()).unwrap();
+//!
+//! // A nucleotide alignment in FASTA — one sequence per leaf taxon.
+//! let fasta = b">A\nACGTACGT\n>B\nACGTATGT\n>C\nACGAACGT\n>D\nTCGTACGA\n";
+//! let aln = Alignment::from_fasta_bytes(fasta).unwrap();
+//!
+//! // HKY85 with gamma-distributed rate heterogeneity (+G, 4 categories).
+//! let model = GtrModel::<Nucleotide>::hky85([0.25, 0.25, 0.25, 0.25], 2.0)
+//!     .unwrap()
+//!     .with_gamma(0.5, 4)
+//!     .unwrap();
+//!
+//! // Log-likelihood of the alignment given the tree and model (pruning only).
+//! let log_lik = tree.log_likelihood::<Nucleotide>(&model, &aln).unwrap();
+//! assert!(log_lik.is_finite());
+//!
+//! // Marginal ancestral sequence reconstruction fills the internal nodes.
+//! let recon = tree.marginal_asr::<Nucleotide>(&model, &aln, false).unwrap();
+//! let root_sequence = recon.sequence_string(tree.get_root_id());
+//! ```
+//!
+//! # Module map
+//!
+//! | Module | What it does |
+//! | --- | --- |
+//! | [`tree::simple_rtree`] | Core tree traits and `SimpleRootedTree`. |
+//! | [`tree::ops`] | Mutating operations: SPR, NNI, reroot, contraction, subtree extraction. |
+//! | [`tree::distances`] | RF, weighted RF, cluster affinity, cophenetic distance, distance matrices. |
+//! | [`tree::io`] | Newick and Nexus reading/writing. |
+//! | [`tree::simulation`] | Random tree generation. |
+//! | [`iter`] | Traversals, Euler walks, and the LCA oracle. |
+//! | [`models`] | GTR+I+G substitution models and their named special cases. |
+//! | [`tree::likelihood`] | Felsenstein-pruning log-likelihood. |
+//! | [`tree::asr`] | Marginal and joint ancestral sequence reconstruction. |
 //!
 //! # Examples
-//! The following snippets are code examples of some phylogenetic analyses. You can find these in the `examples` directory of the repository
 //!
-//! ## Quantifying Phylogenetic Diversity
-//! Quantifying the Phylogenetic Diveristy of a set of trees using the Faith Index:
-//! ```ignore
-//! #[cfg(feature = "non_crypto_hash")]
-//! use fxhash::FxHashMap as HashMap;
-//! #[cfg(not(feature = "non_crypto_hash"))]
-//! use std::collections::HashMap;
+//! Runnable analyses live in the `examples/` directory of the repository (e.g.
+//! `cargo run --example phylogenetic-diversity`, `cargo run --example
+//! pairwise-distances`). See the repository README for how to visualize their
+//! output.
 //!
-//! use itertools::Itertools;
-//! use std::fs::{File, read_to_string};
-//! use phylo::prelude::*;
-//! use std::io::Write;
+//! # WebAssembly
 //!
-//! fn main() {
-//!     let paths: HashMap<_, _> = std::fs::read_dir("examples/phylogenetic-diversity/trees")
-//!        .unwrap()
-//!        .map(|x| (x.as_ref().unwrap().file_name().into_string().unwrap(), std::fs::read_dir(x.unwrap().path()).unwrap()
-//!            .map(|f| (f.as_ref().unwrap().file_name().into_string().unwrap().split("-").map(|x| x.to_string()).collect_vec()[0].clone(), PhyloTree::from_newick(read_to_string(f.unwrap().path()).unwrap().as_bytes()).unwrap()))
-//!            .collect::<HashMap<_,_>>()))
-//!        .collect();
-//!        
-//!        for (clade, trees) in paths.iter(){
-//!        println!("Clade: {}", clade);
-//!        let mut pds = vec![];
-//!        for year in 2015..2023{
-//!            let tree = trees.get(&year.to_string());
-//!            match tree{
-//!                Some(t) => {
-//!                    println!("{}: {}", year, t.get_nodes().map(|n| n.get_weight().unwrap_or(0.0)).sum::<f32>());
-//!                    pds.push(t.get_nodes().map(|n| n.get_weight().unwrap_or(0.0)).sum::<f32>());
-//!                },
-//!                _ => {println!("{}: {}", year, 0.0); pds.push(0.0);},
-//!            };
-//!        }
-//!        }
-//! }
-//! ```
-//! ## Visualizing Phylogenetic Tree Space
-//! Here, we copmpute all pairwise RF distances of a set of trees:
-//! ```ignore
-//! #[cfg(feature = "non_crypto_hash")]
-//! use fxhash::FxHashMap as HashMap;
-//! #[cfg(not(feature = "non_crypto_hash"))]
-//! use std::collections::HashMap;
+//! `phylo` builds for `wasm32` targets out of the box, making it suitable for
+//! in-browser phylogenetics — use your usual wasm toolchain (e.g. `wasm-pack`, or
+//! `cargo build --target wasm32-unknown-unknown`).
 //!
-//! use itertools::Itertools;
-//! use std::fs::{File, read_to_string};
-//! use phylo::prelude::*;
-//! use std::io::Write;
-//! use indicatif::{ProgressIterator, ProgressBar, ProgressStyle};
+//! # Citation
 //!
-//! fn main() {
-//!     let trees = (1..11).progress().map(|x| read_to_string(format!("examples/pairwise-distances/sample-trees.trees"))
-//!             .unwrap()
-//!             .lines()
-//!             .enumerate()
-//!             .map(|(y,z)| (x,y,PhyloTree::from_newick(z.as_bytes()).unwrap()))
-//!             .collect_vec()
-//!         )
-//!         .flatten()
-//!         .collect_vec();
-//!     
-//!     
-//!     let bar = ProgressBar::new((trees.len()*(trees.len()-1)/2) as u64);
-//!     bar.set_style(ProgressStyle::with_template("[{elapsed_precise}] {bar:40.cyan/blue} {pos:>7}/{len:7} {msg} [eta: {eta}]")
-//!         .unwrap()
-//!         .progress_chars("##-"));
-//!     
-//!     trees.iter().combinations(2).map(|v| (v[0], v[1])).for_each(|(x,y)| {
-//!         let out = format!("{}-{}-{}-{}-{}\n", x.0, y.0, x.1, y.1, x.2.ca(&y.2));
-//!         println!("{}", out);
-//!         bar.inc(1);
-//!     });
-//!     bar.finish();
+//! If you use `phylo` in your work, please cite
+//! [this paper](https://pmc.ncbi.nlm.nih.gov/articles/PMC12309125/):
+//!
+//! ```bibtex
+//! @article{vijendran2025phylo,
+//!   title={Phylo-rs: an extensible phylogenetic analysis library in rust},
+//!   author={Vijendran, Sriram and Anderson, Tavis and Markin, Alexey and Eulenstein, Oliver},
+//!   journal={BMC bioinformatics},
+//!   volume={26},
+//!   pages={197},
+//!   year={2025}
 //! }
 //! ```
 //!
+//! # License
 //!
+//! Licensed under the MIT License.
 
 /// Module with multiple sequence alignments and column compression.
 pub mod alignment;
