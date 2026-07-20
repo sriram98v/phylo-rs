@@ -81,9 +81,6 @@
 //! let mut tree_1 = PhyloTree::from_newick(newick_1.as_bytes()).unwrap();
 //! let mut tree_2 = PhyloTree::from_newick(newick_2.as_bytes()).unwrap();
 //!
-//! tree_1.precompute_constant_time_lca();
-//! tree_2.precompute_constant_time_lca();
-//!
 //! tree_1.set_zeta(depth);
 //! tree_2.set_zeta(depth);
 //!
@@ -198,6 +195,8 @@ pub mod prelude {
     pub use crate::alphabet::*;
     #[doc(no_inline)]
     pub use crate::error::*;
+    #[doc(no_inline)]
+    pub use crate::iter::lca::*;
     #[doc(no_inline)]
     pub use crate::iter::node_iter::*;
     pub use crate::models::*;

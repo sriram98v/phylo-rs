@@ -78,23 +78,40 @@ where
         >,
     ) -> Result<Self, ()> {
         let mut subtree = Self::new();
+        // As in `subtree`: drop the `Self::new()` placeholder if the induced
+        // node set never overwrites it (happens when `self`'s root id is not
+        // the placeholder's, e.g. inducing on an already-extracted subtree).
+        let placeholder = subtree.get_root_id();
+        let mut placeholder_kept = self.get_root_id() == placeholder;
         subtree.set_root(self.get_root_id());
         subtree.set_node(self.get_root().clone());
         for node_id in node_id_list.into_iter() {
-            let ancestors = self.root_to_node(node_id).cloned();
-            subtree.set_nodes(ancestors);
+            let ancestors: Vec<Self::Node> = self.root_to_node(node_id).cloned().collect();
+            placeholder_kept |= ancestors.iter().any(|node| node.get_id() == placeholder);
+            subtree.set_nodes(ancestors.into_iter());
         }
         subtree.clean();
+        if !placeholder_kept {
+            subtree.delete_node(placeholder);
+        }
         Ok(subtree)
     }
 
     /// Returns subtree starting at provided node.
     fn subtree(&self, node_id: TreeNodeID<Self>) -> Result<Self, ()> {
         let mut subtree = Self::new();
+        // `Self::new()` seeds a placeholder root node. Unless the extracted
+        // subtree overwrites that slot, it would linger as an unreachable node
+        // in the new arena, so track whether the real nodes cover it.
+        let placeholder = subtree.get_root_id();
         subtree.set_root(node_id);
-        let dfs = self.dfs(node_id).cloned();
-        subtree.set_nodes(dfs);
+        let nodes: Vec<Self::Node> = self.dfs(node_id).cloned().collect();
+        let placeholder_kept = nodes.iter().any(|node| node.get_id() == placeholder);
+        subtree.set_nodes(nodes.into_iter());
         subtree.get_node_mut(node_id).unwrap().set_parent(None);
+        if !placeholder_kept {
+            subtree.delete_node(placeholder);
+        }
         Ok(subtree)
     }
 }
@@ -108,8 +125,10 @@ pub trait ContractTree: EulerWalk + DFS {
         leaf_ids: &[TreeNodeID<Self>],
         node_iter: impl Iterator<Item = TreeNodeID<Self>>,
     ) -> impl Iterator<Item = Self::Node> {
-        let mut node_map: HashMap<TreeNodeID<Self>, Self::Node> =
-            HashMap::from_iter(vec![(new_tree_root_id, self.get_lca(leaf_ids).clone())]);
+        let mut node_map: HashMap<TreeNodeID<Self>, Self::Node> = HashMap::from_iter(vec![(
+            new_tree_root_id,
+            self.get_node(new_tree_root_id).unwrap().clone(),
+        )]);
         let mut remove_list: HashSet<TreeNodeID<Self>> = HashSet::from_iter(vec![]);
         node_iter
             .map(|x| self.get_node(x).cloned().unwrap())
@@ -199,10 +218,15 @@ pub trait ContractTree: EulerWalk + DFS {
     ) -> impl Iterator<Item = Self::Node> {
         let new_tree_root_id = self.get_lca_id(leaf_ids);
         let node_postord_iter = self.postord_nodes(new_tree_root_id);
-        let mut node_map: HashMap<TreeNodeID<Self>, Self::Node> =
-            HashMap::from_iter(vec![(new_tree_root_id, self.get_lca(leaf_ids).clone())]);
+        let mut node_map: HashMap<TreeNodeID<Self>, Self::Node> = HashMap::from_iter(vec![(
+            new_tree_root_id,
+            self.get_node(new_tree_root_id).unwrap().clone(),
+        )]);
         let leaf_ids: HashSet<&TreeNodeID<Self>> = leaf_ids.iter().collect();
-        let mut remove_list = vec![];
+        // HashSet membership: the previous `Vec` scanned linearly on every
+        // `contains`, making the contraction quadratic (the `_from_iter`
+        // sibling already used a set).
+        let mut remove_list: HashSet<TreeNodeID<Self>> = HashSet::default();
         node_postord_iter.for_each(|orig_node| {
             let mut node = orig_node.clone();
             match node.is_leaf() {
@@ -243,7 +267,7 @@ pub trait ContractTree: EulerWalk + DFS {
                                     node.add_child(grandchild_id);
                                 }
                             }
-                            remove_list.push(node.get_id());
+                            remove_list.insert(node.get_id());
                             node_map.insert(node.get_id(), node);
                         }
                         _ => {
@@ -354,20 +378,24 @@ where
 
         let mut ola_indices: Vec<i64> = Vec::with_capacity(n - 1);
 
+        // One euler-tour index shared across the O(n^2) LCA queries below.
+        // Without it every `get_lca_id` call would rebuild the whole index.
+        let oracle = self.lca();
+
         // Step 2: for each leaf l_i (i >= 1), find its sibling in the restricted tree T^i
         for i in 1..n {
             let li = leaf_ids[i];
 
             // The parent of l_i in T^i is the LCA(l_i, l_j) with the greatest depth over all j < i
             let p_id = (0..i)
-                .map(|j| self.get_lca_id(&[li, leaf_ids[j]]))
-                .max_by_key(|&lca| EulerWalk::get_node_depth(self, lca))
+                .map(|j| oracle.get_lca_id(&[li, leaf_ids[j]]))
+                .max_by_key(|&lca| oracle.get_node_depth(lca))
                 .unwrap();
 
             // Sibling's leaves in T^{i-1}: those l_j (j < i) whose LCA with l_i is exactly p_id,
             // meaning they live on the opposite side of p_id from l_i
             let sibling_indices: Vec<usize> = (0..i)
-                .filter(|&j| self.get_lca_id(&[li, leaf_ids[j]]) == p_id)
+                .filter(|&j| oracle.get_lca_id(&[li, leaf_ids[j]]) == p_id)
                 .collect();
 
             let entry = if sibling_indices.len() == 1 {
@@ -380,7 +408,7 @@ where
                 // Split sibling_indices by which child of sib_id each leaf descends through.
                 let sib_leaf_ids: Vec<TreeNodeID<Self>> =
                     sibling_indices.iter().map(|&j| leaf_ids[j]).collect();
-                let sib_id = self.get_lca_id(&sib_leaf_ids);
+                let sib_id = oracle.get_lca_id(&sib_leaf_ids);
                 let mut child_min: HashMap<TreeNodeID<Self>, usize> = HashMap::default();
                 for &j in &sibling_indices {
                     let child = child_of(self, sib_id, leaf_ids[j]);

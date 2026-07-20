@@ -8,11 +8,11 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let input_str: String = fs::read_to_string(args[1].clone())?;
 
-    let mut tree = PhyloTree::from_newick(input_str.as_bytes())?;
-    tree.precompute_constant_time_lca();
+    let tree = PhyloTree::from_newick(input_str.as_bytes())?;
+    let oracle = tree.lca();
     let now = Instant::now();
 
-    let lca_id = tree.get_lca_id(vec![10, 20].as_slice());
+    let lca_id = oracle.get_lca_id(vec![10, 20].as_slice());
 
     let elapsed = now.elapsed();
     println!("{}", &lca_id);

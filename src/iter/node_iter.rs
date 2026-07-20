@@ -1,15 +1,14 @@
-#![allow(clippy::needless_lifetimes)]
-
 #[cfg(feature = "non_crypto_hash")]
 use fxhash::{FxHashMap as HashMap, FxHashSet as HashSet};
 #[cfg(not(feature = "non_crypto_hash"))]
 use std::collections::{HashMap, HashSet};
 
 use itertools::Itertools;
-use std::{collections::VecDeque, ops::Index};
+use std::collections::VecDeque;
 use vers_vecs::BitVec;
 
 use crate::{
+    iter::lca::LcaOracle,
     node::simple_rnode::RootedTreeNode,
     tree::simple_rtree::{RootedTree, TreeNodeID},
 };
@@ -20,30 +19,22 @@ where
     Self: RootedTree + Sized,
 {
     /// Returns an iterator of immutable reference of nodes in a tree in postfix order
-    fn postord_nodes<'a>(
-        &'a self,
-        start_node: TreeNodeID<Self>,
-    ) -> impl Iterator<Item = &'a Self::Node>;
+    fn postord_nodes(&self, start_node: TreeNodeID<Self>) -> impl Iterator<Item = &Self::Node>;
 
     /// Returns an iterator of NodeID's in a tree in postfix order
     fn postord_ids(&self, start_node: TreeNodeID<Self>) -> impl Iterator<Item = TreeNodeID<Self>>;
 
     /// Returns a DFS iterator of immutable node references a tree
-    fn dfs<'a>(
-        &'a self,
-        start_node_id: TreeNodeID<Self>,
-    ) -> impl ExactSizeIterator<Item = &'a Self::Node> {
+    fn dfs(&self, start_node_id: TreeNodeID<Self>) -> impl ExactSizeIterator<Item = &Self::Node> {
+        // A tree reaches every node exactly once through the parent/child
+        // structure, so no visited-set is needed to guard against revisits.
         let mut stack = VecDeque::from([self.get_node(start_node_id).unwrap()]);
         let mut out_vec = vec![];
-        let mut visited: HashSet<TreeNodeID<Self>> = HashSet::default();
         while let Some(x) = stack.pop_front() {
-            let id = x.get_id();
-            if visited.insert(id) {
-                out_vec.push(x);
-                for &child_id in x.get_children().iter().rev() {
-                    stack.push_front(self.get_node(child_id).unwrap());
-                }
-            };
+            out_vec.push(x);
+            for &child_id in x.get_children().iter().rev() {
+                stack.push_front(self.get_node(child_id).unwrap());
+            }
         }
         out_vec.into_iter()
     }
@@ -55,10 +46,7 @@ where
     Self: RootedTree + Sized,
 {
     /// Returns an iterator of immutable reference of nodes in a tree in postfix order
-    fn bfs_nodes<'a>(
-        &'a self,
-        start_node_id: TreeNodeID<Self>,
-    ) -> impl Iterator<Item = &'a Self::Node>;
+    fn bfs_nodes(&self, start_node_id: TreeNodeID<Self>) -> impl Iterator<Item = &Self::Node>;
 
     /// Returns an iterator of NodeID's in a tree in postfix order
     fn bfs_ids(&self, start_node_id: TreeNodeID<Self>) -> impl Iterator<Item = TreeNodeID<Self>>;
@@ -70,21 +58,19 @@ where
     Self: RootedTree + Sized,
 {
     /// Returns an iterator of immutable reference of nodes in a tree in prefix order
-    fn preord_nodes<'a>(
-        &'a self,
+    fn preord_nodes(
+        &self,
         start_node_id: TreeNodeID<Self>,
-    ) -> impl ExactSizeIterator<Item = &'a Self::Node> {
+    ) -> impl ExactSizeIterator<Item = &Self::Node> {
+        // A tree reaches every node exactly once, so the visited-set the
+        // previous body carried was pure overhead.
         let mut stack = VecDeque::from([self.get_node(start_node_id).unwrap()]);
         let mut out_vec = vec![];
-        let mut visited: HashSet<TreeNodeID<Self>> = HashSet::default();
         while let Some(x) = stack.pop_front() {
-            let id = x.get_id();
-            if visited.insert(id) {
-                out_vec.push(x);
-                for &child_id in x.get_children().iter().rev() {
-                    stack.push_front(self.get_node(child_id).unwrap());
-                }
-            };
+            out_vec.push(x);
+            for &child_id in x.get_children().iter().rev() {
+                stack.push_front(self.get_node(child_id).unwrap());
+            }
         }
         out_vec.into_iter()
     }
@@ -94,21 +80,15 @@ where
         &self,
         start_node_id: TreeNodeID<Self>,
     ) -> impl ExactSizeIterator<Item = TreeNodeID<Self>> {
+        // Reversing the children slice in place avoids both the visited-set and
+        // the per-node `collect_vec` the previous body allocated.
         let mut stack = VecDeque::from([start_node_id]);
         let mut out_vec = vec![];
-        let mut visited: HashSet<TreeNodeID<Self>> = HashSet::default();
         while let Some(x) = stack.pop_front() {
-            if visited.insert(x) {
-                out_vec.push(x);
-                for child_id in self
-                    .get_node_children_ids(x)
-                    .collect_vec()
-                    .into_iter()
-                    .rev()
-                {
-                    stack.push_front(child_id);
-                }
-            };
+            out_vec.push(x);
+            for &child_id in self.get_node(x).unwrap().get_children().iter().rev() {
+                stack.push_front(child_id);
+            }
         }
         out_vec.into_iter()
     }
@@ -120,10 +100,10 @@ where
     Self: RootedTree + Sized,
 {
     /// Returns an iterator of immutable references to nodes in a tree from root to node
-    fn root_to_node<'a>(
-        &'a self,
+    fn root_to_node(
+        &self,
         start_node_id: TreeNodeID<Self>,
-    ) -> impl ExactSizeIterator<Item = &'a Self::Node> {
+    ) -> impl ExactSizeIterator<Item = &Self::Node> {
         let mut stack = VecDeque::from([self.get_node(start_node_id).unwrap()]);
         while let Some(x) = stack.pop_front() {
             stack.push_front(x);
@@ -160,10 +140,10 @@ where
     }
 
     /// Returns an iterator of immutable references to nodes in a tree from node to root
-    fn node_to_root<'a>(
-        &'a self,
+    fn node_to_root(
+        &self,
         start_node_id: TreeNodeID<Self>,
-    ) -> impl ExactSizeIterator<Item = &'a Self::Node> {
+    ) -> impl ExactSizeIterator<Item = &Self::Node> {
         let mut stack = VecDeque::from([self.get_node(start_node_id).unwrap()]);
         while let Some(x) = stack.pop_front() {
             stack.push_back(x);
@@ -201,7 +181,9 @@ where
 
     /// Returns depth of a node as number of edges in the path from node to root
     fn depth(&self, node_id: TreeNodeID<Self>) -> usize {
-        self.node_to_root_ids(node_id).len() - 1
+        // Count edges by walking to the root; the previous body materialised
+        // the whole path in a `VecDeque` just to read its length.
+        RootedTree::get_node_depth(self, node_id)
     }
 }
 
@@ -210,36 +192,11 @@ pub trait EulerWalk
 where
     Self: RootedTree + Sized,
 {
-    /// Precomputes an Euler Tour of a tree
-    fn precompute_walk(&mut self);
-
-    /// Returns the euler tour of the tree
-    fn get_precomputed_walk(&self) -> Option<&Vec<TreeNodeID<Self>>>;
-
-    /// Precomputes the first-appearance index of nodes in an euler walk
-    fn precompute_fai(&mut self);
-
-    /// Returns the first-appearance index of nodes in an euler walk
-    fn get_precomputed_fai(&self) -> Option<impl Index<TreeNodeID<Self>, Output = Option<usize>>>;
-
-    /// Precomutes the depth-array of nodes in an euler walk
-    fn precompute_da(&mut self);
-
-    /// Returns the depth-array of nodes in an euler walk
-    fn get_precomputed_da(&self) -> Option<&Vec<usize>>;
-
-    /// Precomutes the structures required for constant-time lca queries
-    fn precompute_constant_time_lca(&mut self) {
-        self.precompute_walk();
-        self.precompute_da();
-        self.precompute_fai();
-    }
-
     /// Returns euler tour of tree as iterator of immutable references to nodes
-    fn euler_walk_nodes<'a>(
-        &'a self,
+    fn euler_walk_nodes(
+        &self,
         start_node_id: TreeNodeID<Self>,
-    ) -> impl ExactSizeIterator<Item = &'a Self::Node> {
+    ) -> impl ExactSizeIterator<Item = &Self::Node> {
         let mut stack = VecDeque::from([self.get_node(start_node_id).unwrap()]);
         let mut visited: HashSet<TreeNodeID<Self>> = HashSet::default();
         let mut out_vec = vec![];
@@ -289,109 +246,30 @@ where
         out_vec.into_iter()
     }
 
-    /// Returns true if euler tour is precomputed
-    fn is_euler_precomputed(&self) -> bool {
-        self.get_precomputed_walk().is_some()
+    /// Builds a constant-time LCA oracle borrowing this tree immutably.
+    ///
+    /// The returned [`LcaOracle`] holds a shared borrow of `self`, so the tree
+    /// cannot be mutated while it is alive. Build one, run every query against
+    /// it, then drop it before mutating the tree again.
+    fn lca(&self) -> LcaOracle<'_, Self> {
+        LcaOracle::build(self)
     }
 
-    /// Computes and returns the first appearance index of each node in the euler tour
-    fn first_appearance(&self) -> impl Index<TreeNodeID<Self>, Output = Option<usize>>;
-
-    /// Returns true if first-appearance index is precomputed
-    fn is_fai_precomputed(&self) -> bool {
-        self.get_precomputed_fai().is_some()
-    }
-
-    /// Returns first-appearance index of tree
-    fn get_fa_index(&self, node_id: TreeNodeID<Self>) -> usize {
-        match self.get_precomputed_fai() {
-            Some(fai) => fai[node_id].unwrap(),
-            None => self.first_appearance()[node_id].unwrap(),
-        }
-    }
-
-    /// depth array for nodes
-    fn depth_array(&self) -> Vec<usize> {
-        let da = match self.get_precomputed_walk() {
-            Some(walk) => walk
-                .iter()
-                .map(|x| RootedTree::get_node_depth(self, *x))
-                .collect_vec(),
-            None => self
-                .euler_walk_ids(self.get_root_id())
-                .map(|x| RootedTree::get_node_depth(self, x))
-                .collect_vec(),
-        };
-        da
-    }
-
-    /// Returns true if depth-array is precomputed
-    fn is_da_precomputed(&self) -> bool {
-        self.get_precomputed_da().is_some()
-    }
-
-    /// Returns depth of node using depth-array
-    fn get_node_depth(&self, node_id: TreeNodeID<Self>) -> usize {
-        match self.get_precomputed_da() {
-            Some(da) => da[self.get_fa_index(node_id)],
-            None => RootedTree::get_node_depth(self, node_id),
-        }
-    }
-
-    /// Returns slice of euler tour
-    fn get_euler_slice(&self, start: usize, end: usize) -> Vec<TreeNodeID<Self>> {
-        match self.get_precomputed_walk() {
-            Some(walk) => walk[start..end].to_vec(),
-            None => self.euler_walk_ids(self.get_root_id()).collect_vec()[start..end].to_vec(),
-        }
-    }
-
-    /// Returns slice of depth-array
-    fn get_da_slice(&self, start: usize, end: usize) -> Vec<usize> {
-        match self.get_precomputed_da() {
-            Some(da) => da[start..end].to_vec(),
-            None => self.depth_array()[start..end].to_vec(),
-        }
-    }
-
-    /// Returns NodeID at index pos of euler tour
-    fn get_euler_pos(&self, pos: usize) -> TreeNodeID<Self> {
-        match self.get_precomputed_walk() {
-            Some(walk) => walk[pos],
-            None => self.euler_walk_ids(self.get_root_id()).nth(pos).unwrap(),
-        }
-    }
-
-    /// Constant time lca query of slice of nodes by NodeID
+    /// Lowest common ancestor of a slice of nodes, by NodeID.
+    ///
+    /// Fallback for one-off queries: it builds a throwaway [`LcaOracle`] for a
+    /// single lookup. Callers that query repeatedly should build one oracle
+    /// with [`Self::lca`] and reuse it.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `node_id_vec` is empty or contains an id that is not a node of
+    /// this tree.
     fn get_lca_id(&self, node_id_vec: &[TreeNodeID<Self>]) -> TreeNodeID<Self> {
-        if node_id_vec.len() == 1 {
-            return node_id_vec[0];
-        }
-        let min_pos = node_id_vec
-            .iter()
-            .map(|x| self.get_fa_index(*x))
-            .min()
-            .unwrap();
-        let max_pos = node_id_vec
-            .iter()
-            .map(|x| self.get_fa_index(*x))
-            .max()
-            .unwrap();
-
-        let depth_subarray_min_value = self
-            .get_da_slice(min_pos, max_pos)
-            .into_iter()
-            .min()
-            .unwrap();
-        let depth_subarray_min_pos = self
-            .get_da_slice(min_pos, max_pos)
-            .into_iter()
-            .position(|x| x == depth_subarray_min_value)
-            .unwrap();
-        self.get_euler_pos(min_pos + depth_subarray_min_pos)
+        self.lca().get_lca_id(node_id_vec)
     }
 
-    /// Constant time lca query of slice of nodes by immutable reference to node.
+    /// Lowest common ancestor of a slice of nodes, by immutable reference.
     fn get_lca<'a>(&'a self, node_id_vec: &[TreeNodeID<Self>]) -> &'a Self::Node {
         self.get_node(self.get_lca_id(node_id_vec)).unwrap()
     }
@@ -400,21 +278,14 @@ where
 /// Trait describing iteration of clusters and bipartitions in a tree.
 pub trait Clusters: DFS + BFS + Sized {
     /// Returns cluster of a node in a rooted tree (smallest cluster in an unrooted tree) as iterator of immutable reference to a node
-    fn get_cluster<'a>(
-        &'a self,
-        node_id: TreeNodeID<Self>,
-    ) -> impl ExactSizeIterator<Item = &'a Self::Node> {
-        self.dfs(node_id)
-            .filter(|x| x.is_leaf())
-            .collect_vec()
-            .into_iter()
+    fn get_cluster(&self, node_id: TreeNodeID<Self>) -> impl Iterator<Item = &Self::Node> {
+        // `dfs` already materialises its walk, so filtering it lazily avoids a
+        // second `Vec` that only existed to promise `ExactSizeIterator`.
+        self.dfs(node_id).filter(|x| x.is_leaf())
     }
 
     /// Returns cluster of a node in a rooted tree (smallest cluster in an unrooted tree) as iterator of NodeID's
-    fn get_cluster_ids(
-        &self,
-        node_id: TreeNodeID<Self>,
-    ) -> impl ExactSizeIterator<Item = TreeNodeID<Self>> {
+    fn get_cluster_ids(&self, node_id: TreeNodeID<Self>) -> impl Iterator<Item = TreeNodeID<Self>> {
         self.get_cluster(node_id).map(move |x| x.get_id())
     }
 
@@ -451,24 +322,26 @@ pub trait Clusters: DFS + BFS + Sized {
 
     /// Returns size of a cluster of nodes
     fn get_cluster_size(&self, node_id: TreeNodeID<Self>) -> usize {
-        self.get_cluster_ids(node_id).len()
+        self.get_cluster_ids(node_id).count()
     }
 
     /// Returns bipartition of an edge in a tree as iterator of immutable reference to a node
-    fn get_bipartition<'a>(
-        &'a self,
+    fn get_bipartition(
+        &self,
         edge: (TreeNodeID<Self>, TreeNodeID<Self>),
     ) -> (
-        impl ExactSizeIterator<Item = &'a Self::Node>,
-        impl ExactSizeIterator<Item = &'a Self::Node>,
+        impl Iterator<Item = &Self::Node>,
+        impl Iterator<Item = &Self::Node>,
     ) {
         let c2 = self.get_cluster(edge.1);
-        let c2_ids = self.get_cluster_ids(edge.1).collect_vec();
+        // Hash the opposite cluster so membership is O(1); the previous body
+        // scanned `c2_ids` linearly for every element of `c1`. Both sides are
+        // now lazy -- no `Vec` just to hand back an `ExactSizeIterator`.
+        let c2_ids: HashSet<TreeNodeID<Self>> = self.get_cluster_ids(edge.1).collect();
         let c1 = self
             .get_cluster(edge.0)
-            .filter(|x| !c2_ids.contains(&x.get_id()))
-            .collect_vec();
-        (c1.into_iter(), c2.into_iter())
+            .filter(move |x| !c2_ids.contains(&x.get_id()));
+        (c1, c2)
     }
 
     /// Returns bipartition of an edge in a tree as iterator of NodeID's
@@ -476,16 +349,16 @@ pub trait Clusters: DFS + BFS + Sized {
         &self,
         edge: (TreeNodeID<Self>, TreeNodeID<Self>),
     ) -> (
-        impl ExactSizeIterator<Item = TreeNodeID<Self>>,
-        impl ExactSizeIterator<Item = TreeNodeID<Self>>,
+        impl Iterator<Item = TreeNodeID<Self>>,
+        impl Iterator<Item = TreeNodeID<Self>>,
     ) {
         let c2 = self.get_cluster_ids(edge.1);
-        let c2_ids = self.get_cluster_ids(edge.1).collect_vec();
+        // O(1) membership instead of a linear scan per element of `c1`.
+        let c2_ids: HashSet<TreeNodeID<Self>> = self.get_cluster_ids(edge.1).collect();
         let c1 = self
             .get_cluster_ids(edge.0)
-            .filter(|x| !c2_ids.contains(x))
-            .collect_vec();
-        (c1.into_iter(), c2.into_iter())
+            .filter(move |x| !c2_ids.contains(x));
+        (c1, c2)
     }
 
     /// Returns all bipartitions of a tree as iterator of NodeID's
@@ -548,7 +421,7 @@ pub trait Clusters: DFS + BFS + Sized {
     /// Returns median NodeID of a set of leaves in a tree.
     fn get_median_node_id_for_leaves(
         &self,
-        taxa_set: impl ExactSizeIterator<Item = TreeNodeID<Self>>,
+        taxa_set: impl Iterator<Item = TreeNodeID<Self>>,
     ) -> TreeNodeID<Self> {
         let mut cluster_sizes: HashMap<TreeNodeID<Self>, usize> = vec![].into_iter().collect();
         let mut median_node_id: TreeNodeID<Self> = self.get_root_id();
@@ -581,16 +454,16 @@ pub trait Clusters: DFS + BFS + Sized {
     }
 
     /// Returns immutable reference to median node of a set of leaves in a tree.
-    fn get_median_node_for_leaves<'a>(
-        &'a self,
-        taxa_set: impl ExactSizeIterator<Item = TreeNodeID<Self>>,
-    ) -> &'a Self::Node {
+    fn get_median_node_for_leaves(
+        &self,
+        taxa_set: impl Iterator<Item = TreeNodeID<Self>>,
+    ) -> &Self::Node {
         self.get_node(self.get_median_node_id_for_leaves(taxa_set))
             .unwrap()
     }
 
     /// Returns an immutable reference to median node of all leaves in a tree.
-    fn get_median_node<'a>(&'a self) -> &'a Self::Node {
+    fn get_median_node(&self) -> &Self::Node {
         let leaves = self.get_leaves().map(|x| x.get_id());
         self.get_median_node_for_leaves(leaves)
     }

@@ -8,35 +8,34 @@ pub type TreeNodeID<T> = <<T as RootedTree>::Node as RootedTreeNode>::NodeID;
 pub type TreeNodeMeta<T> = <<T as RootedTree>::Node as RootedMetaNode>::Meta;
 /// A type alias for Tree edge weight
 pub type TreeNodeWeight<T> = <<T as RootedTree>::Node as RootedWeightedNode>::Weight;
+/// A type alias for the zeta annotation of a node in a tree.
+pub type TreeNodeZeta<T> = <<T as RootedTree>::Node as RootedZetaNode>::Zeta;
 
-/// A trait describing the behaviour of a rooted tree#[allow(clippy::needless_lifetimes)]
-#[allow(clippy::needless_lifetimes)]
-pub trait RootedTree: Clone + Sync
-where
-    Self::Node: RootedTreeNode + Debug,
-{
+/// A trait describing the behaviour of a rooted tree
+pub trait RootedTree: Clone + Sync {
     /// An associated node type for a rooted tree
-    type Node;
+    type Node: RootedTreeNode + Debug;
 
     /// Returns reference to node by ID
-    fn get_node<'a>(&'a self, node_id: TreeNodeID<Self>) -> Option<&'a Self::Node>;
+    fn get_node(&self, node_id: TreeNodeID<Self>) -> Option<&Self::Node>;
 
     /// Returns a mutable reference to a node
-    fn get_node_mut<'a>(&'a mut self, node_id: TreeNodeID<Self>) -> Option<&'a mut Self::Node>;
+    fn get_node_mut(&mut self, node_id: TreeNodeID<Self>) -> Option<&mut Self::Node>;
 
     /// Reurns an iterator over all NodeID's
     fn get_node_ids(&self) -> impl Iterator<Item = TreeNodeID<Self>>;
 
     /// Returns an iterator with immutable references to nodes
-    fn get_nodes<'a>(&'a self) -> impl ExactSizeIterator<Item = &'a Self::Node> {
-        self.get_node_ids()
-            .map(|id| self.get_node(id).unwrap())
-            .collect_vec()
-            .into_iter()
+    ///
+    /// The count of a node subset isn't known without a walk, so this yields a
+    /// lazy `Iterator` rather than materialising a `Vec` to promise
+    /// `ExactSizeIterator`. Call `.count()` if you need the length.
+    fn get_nodes(&self) -> impl Iterator<Item = &Self::Node> {
+        self.get_node_ids().map(|id| self.get_node(id).unwrap())
     }
 
     /// Returns iterator with mutable references to nodes
-    fn get_nodes_mut<'a>(&'a mut self) -> impl Iterator<Item = &'a mut Self::Node>;
+    fn get_nodes_mut(&mut self) -> impl Iterator<Item = &mut Self::Node>;
 
     /// Returns NodeID of root node
     fn get_root_id(&self) -> TreeNodeID<Self>;
@@ -96,7 +95,11 @@ where
             }
             // Removing dangling references to pruned children
             for chid in node.get_children() {
-                if !self.get_nodes().map(|x| x.get_id()).contains(chid) {
+                // `contains_node` is a single arena lookup. Scanning every node
+                // in the tree for the id -- and allocating a vector of them all
+                // to do it -- happened once per child, so cleaning a tree cost
+                // a quadratic number of allocations.
+                if !self.contains_node(*chid) {
                     self.get_node_mut(node_id).unwrap().remove_child(chid);
                 }
             }
@@ -146,28 +149,22 @@ where
     }
 
     /// Returns iterator of immutable references to leaf nodes in tree.
-    fn get_leaves<'a>(&'a self) -> impl ExactSizeIterator<Item = &'a Self::Node> {
-        self.get_nodes()
-            .filter(|x| x.is_leaf())
-            .collect_vec()
-            .into_iter()
+    fn get_leaves(&self) -> impl Iterator<Item = &Self::Node> {
+        self.get_nodes().filter(|x| x.is_leaf())
     }
 
     /// Returns an iterator of leaf NodeID's
-    fn get_leaf_ids(&self) -> impl ExactSizeIterator<Item = TreeNodeID<Self>> {
-        self.get_node_ids()
-            .filter(|x| self.is_leaf(*x))
-            .collect_vec()
-            .into_iter()
+    fn get_leaf_ids(&self) -> impl Iterator<Item = TreeNodeID<Self>> {
+        self.get_node_ids().filter(|x| self.is_leaf(*x))
     }
 
     /// Returns an immutable reference to root node
-    fn get_root<'a>(&'a self) -> &'a Self::Node {
+    fn get_root(&self) -> &Self::Node {
         self.get_node(self.get_root_id()).unwrap()
     }
 
     /// Returns a mutable reference to the root node
-    fn get_root_mut<'a>(&'a mut self) -> &'a mut Self::Node {
+    fn get_root_mut(&mut self) -> &mut Self::Node {
         self.get_node_mut(self.get_root_id()).unwrap()
     }
 
@@ -180,7 +177,7 @@ where
     }
 
     /// Removes edge from prant to child without deleting either node.
-    fn remove_child<'a>(&'a mut self, parent_id: TreeNodeID<Self>, child_id: TreeNodeID<Self>) {
+    fn remove_child(&mut self, parent_id: TreeNodeID<Self>, child_id: TreeNodeID<Self>) {
         self.get_node_mut(parent_id)
             .unwrap()
             .remove_child(&child_id);
@@ -214,29 +211,27 @@ where
     }
 
     /// Returns immutable reference to parent for a node
-    fn get_node_parent<'a>(&'a self, node_id: TreeNodeID<Self>) -> Option<&'a Self::Node> {
+    fn get_node_parent(&self, node_id: TreeNodeID<Self>) -> Option<&Self::Node> {
         self.get_node(self.get_node_parent_id(node_id)?)
     }
 
     /// Returns immutable reference to parent for a node
-    fn get_node_parent_mut<'a>(
-        &'a mut self,
-        node_id: TreeNodeID<Self>,
-    ) -> Option<&'a mut Self::Node> {
+    fn get_node_parent_mut(&mut self, node_id: TreeNodeID<Self>) -> Option<&mut Self::Node> {
         self.get_node_mut(self.get_node_parent_id(node_id)?)
     }
 
     /// Returns an iterator of immutable references to children of a node
-    fn get_node_children<'a>(
-        &'a self,
+    fn get_node_children(
+        &self,
         node_id: TreeNodeID<Self>,
-    ) -> impl ExactSizeIterator<Item = &'a Self::Node> {
-        let node = self.get_node(node_id).unwrap();
-        node.get_children()
+    ) -> impl ExactSizeIterator<Item = &Self::Node> {
+        // `Map` is already `ExactSizeIterator` when its source is, so the
+        // collect this used to do bought nothing but an allocation per call.
+        self.get_node(node_id)
+            .unwrap()
+            .get_children()
             .iter()
             .map(|x| self.get_node(*x).unwrap())
-            .collect_vec()
-            .into_iter()
     }
 
     /// Returns an iterator of node children ids
@@ -244,15 +239,18 @@ where
         &self,
         node_id: TreeNodeID<Self>,
     ) -> impl ExactSizeIterator<Item = TreeNodeID<Self>> {
+        // Borrow the children slice rather than copying it out. Traversals call
+        // this once per node, so the `to_vec` here was an allocation per node
+        // per walk.
         self.get_node(node_id)
             .unwrap()
             .get_children()
-            .to_vec()
-            .into_iter()
+            .iter()
+            .copied()
     }
 
     /// Returns degree of a node
-    fn node_degree<'a>(&'a self, node_id: TreeNodeID<Self>) -> usize {
+    fn node_degree(&self, node_id: TreeNodeID<Self>) -> usize {
         self.get_node(node_id).unwrap().degree()
     }
 
@@ -288,14 +286,11 @@ where
 
     /// Returns total number of nodes in tree
     fn num_nodes(&self) -> usize {
-        self.get_node_ids().collect_vec().len()
+        self.get_node_ids().count()
     }
 
     /// Returns iterator of immutable references to siblings of a node.
-    fn get_siblings<'a>(
-        &'a self,
-        node_id: TreeNodeID<Self>,
-    ) -> impl Iterator<Item = &'a Self::Node> {
+    fn get_siblings(&self, node_id: TreeNodeID<Self>) -> impl Iterator<Item = &Self::Node> {
         let parent_id = self
             .get_node_parent_id(node_id)
             .expect("Node has no siblings!");
@@ -315,7 +310,7 @@ where
     }
 
     /// Connects a nodes children to it's parent, then deletes all edges to the node, without deleting the node from the tree
-    fn supress_node<'a>(&'a mut self, node_id: TreeNodeID<Self>) -> Option<()> {
+    fn supress_node(&mut self, node_id: TreeNodeID<Self>) -> Option<()> {
         let node_parent_id = self.get_node_parent_id(node_id)?;
         let node_children_ids = self.get_node_children_ids(node_id).collect_vec();
         for child_id in node_children_ids.as_slice() {
@@ -341,11 +336,10 @@ where
     fn from_nodes(nodes: Vec<Option<Self::Node>>, root_id: TreeNodeID<Self>) -> Self;
 
     /// Supresses all nodes of degree 2
-    fn supress_unifurcations<'a>(&'a mut self);
+    fn supress_unifurcations(&mut self);
 }
 
 /// A trait describing the behaviour of a rooted tree where some of the nodes have a meta annotation. The terms meta and taxa are used interchangably here.
-#[allow(clippy::needless_lifetimes)]
 pub trait RootedMetaTree: RootedTree
 where
     Self::Node: RootedMetaNode,
@@ -362,16 +356,12 @@ where
     fn num_taxa(&self) -> usize;
 
     /// Sets the emta annotation of a node
-    fn set_node_taxa<'a>(
-        &'a mut self,
-        node_id: TreeNodeID<Self>,
-        taxa: Option<TreeNodeMeta<Self>>,
-    ) {
+    fn set_node_taxa(&mut self, node_id: TreeNodeID<Self>, taxa: Option<TreeNodeMeta<Self>>) {
         self.get_node_mut(node_id).unwrap().set_taxa(taxa)
     }
 
     /// Returns an immutable reference to the meta annotation of a node, and None is there is no meta annotation
-    fn get_node_taxa<'a>(&'a self, node_id: TreeNodeID<Self>) -> Option<&'a TreeNodeMeta<Self>> {
+    fn get_node_taxa(&self, node_id: TreeNodeID<Self>) -> Option<&TreeNodeMeta<Self>> {
         self.get_node(node_id).unwrap().get_taxa()
     }
 
@@ -379,33 +369,29 @@ where
     fn get_node_taxa_cloned(&self, node_id: TreeNodeID<Self>) -> Option<TreeNodeMeta<Self>>;
 
     /// Returns an iterator with immutable references to all meta annotations in a tree.
-    fn get_taxa_space<'a>(&'a self) -> impl ExactSizeIterator<Item = &'a TreeNodeMeta<Self>> {
-        self.get_nodes()
-            .map(|node| node.get_taxa())
-            .filter(|x| x.is_none())
-            .map(|x| x.unwrap())
-            .collect_vec()
-            .into_iter()
+    fn get_taxa_space(&self) -> impl Iterator<Item = &TreeNodeMeta<Self>> {
+        // Keep the *labelled* nodes' taxa. The previous body filtered for
+        // `is_none` and then unwrapped, which dropped every real taxon and
+        // panicked on the first unlabelled node.
+        self.get_nodes().filter_map(|node| node.get_taxa())
     }
 }
 
 /// A trait describing the behaviour of a rooted tree where some of the edges are weighted
-#[allow(clippy::needless_lifetimes)]
 pub trait RootedWeightedTree: RootedTree
 where
     Self::Node: RootedWeightedNode,
 {
     /// Sets all edge weights to None
-    fn unweight<'a>(&'a mut self) {
-        let ids = self.get_node_ids().collect_vec();
-        for id in ids {
-            self.get_node_mut(id).unwrap().set_weight(None);
+    fn unweight(&mut self) {
+        for node in self.get_nodes_mut() {
+            node.set_weight(None);
         }
     }
 
     /// Sets edge weight to None
-    fn set_edge_weight<'a>(
-        &'a mut self,
+    fn set_edge_weight(
+        &mut self,
         edge: (TreeNodeID<Self>, TreeNodeID<Self>),
         edge_weight: Option<TreeNodeWeight<Self>>,
     ) {
@@ -413,7 +399,7 @@ where
     }
 
     /// Returns true if edge weight not None
-    fn is_weighted<'a>(&'a self) -> bool {
+    fn is_weighted(&self) -> bool {
         for node_id in self.get_node_ids() {
             if self.get_node(node_id).unwrap().get_weight().is_none() {
                 return false;
@@ -423,8 +409,8 @@ where
     }
 
     /// Returns weight of edge
-    fn get_edge_weight<'a>(
-        &'a self,
+    fn get_edge_weight(
+        &self,
         _parent_id: TreeNodeID<Self>,
         child_id: TreeNodeID<Self>,
     ) -> Option<TreeNodeWeight<Self>> {

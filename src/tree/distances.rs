@@ -13,9 +13,6 @@ use rayon::prelude::*;
 
 use crate::prelude::*;
 
-/// A type alias for zeta annotation of a node in a tree.
-pub type TreeNodeZeta<T> = <<T as RootedTree>::Node as RootedZetaNode>::Zeta;
-
 /// A trait describing the path functions in a tree.
 pub trait PathFunction: RootedTree
 where
@@ -46,7 +43,9 @@ where
 
     /// Returns true if all node zeta value is not None    
     fn is_all_zeta_set(&self) -> bool {
-        !self.get_nodes().any(|x| !x.is_zeta_set())
+        // Iterate ids so the allocating `get_nodes` default isn't materialised.
+        self.get_node_ids()
+            .all(|id| self.get_node(id).unwrap().is_zeta_set())
     }
 
     /// Sets zeta value of a node in a tree by value.
@@ -61,16 +60,21 @@ where
 }
 
 /// A trait describing efficient computation of vertex to vertex distances
-pub trait DistanceMatrix: RootedWeightedTree
+pub trait DistanceMatrix: RootedWeightedTree + EulerWalk
 where
     <Self as RootedTree>::Node: RootedWeightedNode,
 {
     /// Return the symmetrical pairwise distance matrix.
     fn matrix(&self) -> Vec<Vec<TreeNodeWeight<Self>>>;
 
-    /// Populates a pairwise distance matrix for a subtree
+    /// Distance between two nodes, using a prebuilt LCA oracle.
+    ///
+    /// The oracle is passed in rather than rebuilt per call so a full matrix
+    /// shares one euler-tour index across all `O(n^2)` pairs. Build it once
+    /// with [`EulerWalk::lca`] and borrow it here.
     fn pairwise_distance(
         &self,
+        oracle: &LcaOracle<'_, Self>,
         node_id_1: TreeNodeID<Self>,
         node_id_2: TreeNodeID<Self>,
     ) -> TreeNodeWeight<Self>;
@@ -383,7 +387,10 @@ where
         norm: u32,
         taxa_set: impl Iterator<Item = &'a TreeNodeMeta<Self>> + Send,
     ) -> TreeNodeZeta<Self> {
-        // let taxa_set = taxa_set.collect_vec();
+        // One euler-tour index per tree, shared across every pair, rather than
+        // the naive per-query rebuild the trait fallback would do.
+        let self_oracle = self.lca();
+        let tree_oracle = tree.lca();
         let cophen_vec: Vec<TreeNodeZeta<Self>> = taxa_set
             .combinations_with_replacement(2)
             .par_bridge()
@@ -402,8 +409,8 @@ where
                         .iter()
                         .map(|a| tree.get_taxa_node_id(a).unwrap())
                         .collect_vec();
-                    let t_lca_id = self.get_lca_id(self_ids.as_slice());
-                    let t_hat_lca_id = tree.get_lca_id(tree_ids.as_slice());
+                    let t_lca_id = self_oracle.get_lca_id(self_ids.as_slice());
+                    let t_hat_lca_id = tree_oracle.get_lca_id(tree_ids.as_slice());
                     let zeta_1 = self.get_zeta(t_lca_id).unwrap();
                     let zeta_2 = tree.get_zeta(t_hat_lca_id).unwrap();
                     (zeta_1 - zeta_2).abs()
@@ -421,9 +428,11 @@ where
         norm: u32,
         taxa_set: impl Iterator<Item = &'a TreeNodeMeta<Self>>,
     ) -> TreeNodeZeta<Self> {
-        // let taxa_set = taxa_set.collect_vec();
+        // One euler-tour index per tree, shared across every pair, rather than
+        // the naive per-query rebuild the trait fallback would do.
+        let self_oracle = self.lca();
+        let tree_oracle = tree.lca();
         let cophen_vec = taxa_set
-            // .iter()
             .combinations_with_replacement(2)
             .map(|x| match x[0] == x[1] {
                 true => {
@@ -440,8 +449,8 @@ where
                         .iter()
                         .map(|a| tree.get_taxa_node_id(a).unwrap())
                         .collect_vec();
-                    let t_lca_id = self.get_lca_id(self_ids.as_slice());
-                    let t_hat_lca_id = tree.get_lca_id(tree_ids.as_slice());
+                    let t_lca_id = self_oracle.get_lca_id(self_ids.as_slice());
+                    let t_hat_lca_id = tree_oracle.get_lca_id(tree_ids.as_slice());
                     let zeta_1 = self.get_zeta(t_lca_id).unwrap();
                     let zeta_2 = tree.get_zeta(t_hat_lca_id).unwrap();
                     (zeta_1 - zeta_2).abs()

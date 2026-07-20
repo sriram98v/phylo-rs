@@ -20,3 +20,7 @@ comparison/gotree/time/*
 
 # Output written by the phylogenetic-diversity example when it is run.
 /examples/phylogenetic-diversity/pds.out
+
+# Local Claude Code config -- developer-local, not for the remote.
+/CLAUDE.md
+/.claude/

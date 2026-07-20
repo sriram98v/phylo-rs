@@ -1,6 +1,9 @@
 /// Module with traits for tree traversals
 pub mod node_iter;
 
+/// Module with the borrowing constant-time LCA oracle
+pub mod lca;
+
 use crate::{node::Node, prelude::*};
 use itertools::Itertools;
 use std::collections::VecDeque;

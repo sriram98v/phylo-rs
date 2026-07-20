@@ -4,11 +4,32 @@ use thiserror::Error;
 #[derive(Error, Debug)]
 pub enum NewickError {
     /// Invalid character in source
-    #[error("invalid character at {idx}")]
+    #[error("invalid character at byte {idx}")]
     InvalidCharacter {
-        /// Position of the invalid character in the source
+        /// Byte offset of the invalid character in the source
         idx: usize,
     },
+    /// A `)` or `,` appeared with no matching `(`, or a `(` was never closed
+    #[error("unbalanced parentheses at byte {idx}")]
+    UnbalancedParens {
+        /// Byte offset at which the imbalance was detected
+        idx: usize,
+    },
+    /// A quoted label (`'...'`) was never closed
+    #[error("unterminated quoted label starting at byte {idx}")]
+    UnterminatedQuote {
+        /// Byte offset of the opening quote
+        idx: usize,
+    },
+    /// A `[...]` comment was never closed
+    #[error("unterminated comment starting at byte {idx}")]
+    UnterminatedComment {
+        /// Byte offset of the opening bracket
+        idx: usize,
+    },
+    /// The input contained no tree
+    #[error("empty input: no tree found")]
+    Empty,
 }
 
 /// A type for errors when parsing Nexus files
@@ -17,6 +38,9 @@ pub enum NexusError {
     /// Invalid header format
     #[error("expected \"#NEXUS\" at the start of the input")]
     InvalidHeader,
+    /// No parseable tree definition was found
+    #[error("no tree definition (expected a \"... = <newick>;\" entry in a TREES block)")]
+    MissingTreeBlock,
 }
 
 /// A type for errors during ancestral sequence reconstruction

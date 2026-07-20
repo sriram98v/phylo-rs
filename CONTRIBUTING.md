@@ -97,7 +97,7 @@ weight, and node annotation. The traits build up incrementally:
 
 **Iteration** (`src/iter/node_iter.rs`) — `DFS`, `BFS`, `PreOrder`, `Ancestors`,
 `EulerWalk`, `Clusters`, implemented on any `RootedTree`. `EulerWalk` supports
-O(1) LCA queries via `precompute_constant_time_lca()`.
+O(1) LCA queries via a borrowing `LcaOracle` built with `tree.lca()`.
 
 New code should land in the module that owns that concern, and should be generic
 over the traits rather than reaching for `SimpleRootedTree` directly where a

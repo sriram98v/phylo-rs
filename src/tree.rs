@@ -1,4 +1,3 @@
-#![allow(clippy::needless_lifetimes)]
 /// Module with traits and structs for ancestral sequence reconstruction
 pub mod asr;
 /// Module with traits and structs for distance computation
@@ -7,6 +6,9 @@ pub mod distances;
 pub mod io;
 /// Module with phylogenetic likelihood under a substitution model
 pub mod likelihood;
+/// Iterative Newick-format parser
+#[cfg(feature = "simple_rooted_tree")]
+pub(crate) mod newick;
 /// Module with traits and structs for tree operations
 pub mod ops;
 /// Module with traits and structs for general tree traits
@@ -20,7 +22,6 @@ pub use simple_rooted_tree::*;
 #[cfg(feature = "simple_rooted_tree")]
 mod simple_rooted_tree {
     use super::simulation::{Uniform, Yule};
-    use std::ops::Index;
 
     use itertools::Itertools;
     use rand::prelude::IteratorRandom;
@@ -31,7 +32,6 @@ mod simple_rooted_tree {
     use std::fmt::Debug;
     use std::hash::{Hash, Hasher};
     use std::sync::Arc;
-    use vers_vecs::BinaryRmq;
 
     #[cfg(feature = "non_crypto_hash")]
     use fxhash::{FxHashMap as HashMap, FxHashSet as HashSet};
@@ -64,21 +64,6 @@ mod simple_rooted_tree {
         }
     }
 
-    /// Precomputed data structures for constant-time LCA queries.
-    /// Can be created, used, and dropped independently of the tree.
-    #[derive(Debug, Clone)]
-    #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-    pub struct LcaIndex {
-        /// Precomputed euler tour
-        pub euler: Vec<NodeID>,
-        /// Precomputed first-appearance index
-        pub fai: Vec<Option<usize>>,
-        /// Precomputed depth-array
-        pub da: Vec<usize>,
-        /// Precomputed range-minimum-query
-        pub rmq: BinaryRmq,
-    }
-
     /// Pointer-based wrapper around `Arc<T>` for use as HashMap key.
     /// Hashes and compares by Arc pointer identity, avoiding content hashing.
     #[derive(Clone, Debug)]
@@ -106,14 +91,88 @@ mod simple_rooted_tree {
         W: EdgeWeight,
         Z: NodeWeight,
     {
-        /// Root NodeID
-        pub root: NodeID,
-        /// Nodes of the tree
-        pub nodes: Vec<Option<Node<T, W, Z>>>,
-        /// Index of nodes by taxa
-        pub taxa_node_id_map: HashMap<TaxaPtr<T>, NodeID>,
-        /// Precomputed LCA index for constant-time LCA queries
-        pub lca_index: Option<LcaIndex>,
+        /// Root NodeID.
+        ///
+        /// Reachable via [`RootedTree::get_root_id`] and [`RootedTree::set_root`].
+        root: NodeID,
+        /// Nodes of the tree.
+        ///
+        /// Reachable via [`RootedTree::get_node`], [`RootedTree::get_node_mut`]
+        /// and [`RootedTree::get_node_ids`].
+        ///
+        /// Private because two separate pieces of derived state -- the
+        /// `first_free` cursor and `taxa_node_id_map` -- are only correct if
+        /// every write to the arena goes through a method that maintains them.
+        /// A direct write cannot, and the failure is silent.
+        nodes: Vec<Option<Node<T, W, Z>>>,
+        /// Index of nodes by taxa.
+        ///
+        /// Reachable via [`RootedMetaTree::get_taxa_node_id`] and
+        /// [`RootedMetaTree::num_taxa`].
+        taxa_node_id_map: HashMap<TaxaPtr<T>, NodeID>,
+        /// Lower bound on the first vacant arena slot.
+        ///
+        /// Invariant: every slot below this index is occupied. That makes it a
+        /// hint rather than an answer -- the slot at this index may itself be
+        /// occupied, so [`Self::next_id`] still scans, but only from here
+        /// rather than from zero.
+        ///
+        /// Kept private: the invariant is what makes `next_id` cheap, and an
+        /// external write to `nodes` could silently break it.
+        first_free: NodeID,
+    }
+
+    impl<T, W, Z> SimpleRootedTree<T, W, Z>
+    where
+        T: NodeTaxa,
+        W: EdgeWeight,
+        Z: NodeWeight,
+    {
+        /// Recomputes [`Self::first_free`] from scratch.
+        ///
+        /// Only for constructors, which take an arena they did not build.
+        fn recompute_first_free(&mut self) {
+            self.first_free = self
+                .nodes
+                .iter()
+                .position(Option::is_none)
+                .unwrap_or(self.nodes.len());
+        }
+
+        /// Restores the invariant after slot `node_id` has been filled.
+        fn note_slot_filled(&mut self, node_id: NodeID) {
+            if node_id == self.first_free {
+                // Walk past everything now occupied. Each slot is stepped over
+                // at most once per fill, so this is amortised O(1).
+                while self.first_free < self.nodes.len() && self.nodes[self.first_free].is_some() {
+                    self.first_free += 1;
+                }
+            }
+        }
+
+        /// Restores the invariant after slot `node_id` has been vacated.
+        fn note_slot_vacated(&mut self, node_id: NodeID) {
+            if node_id < self.first_free {
+                self.first_free = node_id;
+            }
+        }
+
+        /// Drops `node_id`'s taxon from the lookup map, if it has one.
+        ///
+        /// The map holds an `Arc` to each taxon, so an entry left behind for a
+        /// node that is gone keeps the taxon alive, makes `num_taxa` over-count
+        /// and lets a stale name resolve to a vacant slot.
+        fn forget_taxa(&mut self, node_id: NodeID) {
+            let taxa = self
+                .nodes
+                .get(node_id)
+                .and_then(|slot| slot.as_ref())
+                .and_then(|node| node.get_taxa_arc())
+                .cloned();
+            if let Some(arc) = taxa {
+                self.taxa_node_id_map.remove(&TaxaPtr(arc));
+            }
+        }
     }
 
     impl<T, W, Z> SimpleRootedTree<T, W, Z>
@@ -127,12 +186,14 @@ mod simple_rooted_tree {
             let root_node = Node::new(root_id);
             let mut nodes = vec![None; root_id + 1];
             nodes[root_id] = Some(root_node);
-            SimpleRootedTree {
+            let mut tree = SimpleRootedTree {
                 root: root_id,
                 nodes,
                 taxa_node_id_map: [].into_iter().collect::<HashMap<_, _>>(),
-                lca_index: None,
-            }
+                first_free: 0,
+            };
+            tree.recompute_first_free();
+            tree
         }
 
         /// Creates tree with specified capacity
@@ -140,20 +201,30 @@ mod simple_rooted_tree {
             let root_node = Node::new(0);
             let mut nodes = vec![None; capacity];
             nodes[0] = Some(root_node);
-            SimpleRootedTree {
+            let mut tree = SimpleRootedTree {
                 root: 0,
                 nodes,
                 taxa_node_id_map: [].into_iter().collect::<HashMap<_, _>>(),
-                lca_index: None,
-            }
+                first_free: 0,
+            };
+            tree.recompute_first_free();
+            tree
         }
 
-        /// Returns new empty tree
+        /// Returns the lowest vacant arena slot, or the arena length if full.
+        ///
+        /// Takes `&self`, so it does not consume the slot: calling it twice
+        /// without an intervening insert returns the same id both times.
+        /// Callers rely on that.
+        ///
+        /// Scans from [`Self::first_free`] rather than from zero. Since every
+        /// slot below that is occupied, the result is identical to a full scan,
+        /// but building a tree no longer re-walks the whole arena per node.
         pub fn next_id(&self) -> usize {
-            match &self.nodes.iter().position(|r| r.is_none()) {
-                Some(x) => *x,
-                None => self.nodes.len(),
-            }
+            self.nodes[self.first_free..]
+                .iter()
+                .position(Option::is_none)
+                .map_or(self.nodes.len(), |offset| self.first_free + offset)
         }
 
         /// Creates new node with next NodeID
@@ -164,6 +235,39 @@ mod simple_rooted_tree {
         /// returns max number of nodes in tree without reallocating node vec
         pub fn get_capacity(&self) -> usize {
             self.nodes.len()
+        }
+
+        /// Returns the bytes allocated on the heap by the node arena.
+        ///
+        /// This counts the arena at capacity, so vacant slots are included:
+        /// the arena never shrinks, and a hole costs a full slot.
+        pub fn arena_heap_size(&self) -> usize {
+            self.nodes.capacity() * std::mem::size_of::<Option<Node<T, W, Z>>>()
+                + self
+                    .nodes
+                    .iter()
+                    .flatten()
+                    .map(|node| node.heap_size())
+                    .sum::<usize>()
+        }
+
+        /// Returns the bytes allocated on the heap by the taxa map.
+        ///
+        /// Excludes the taxa values themselves, which live behind [`Arc`] and
+        /// whose size depends on `T`.
+        pub fn taxa_map_heap_size(&self) -> usize {
+            self.taxa_node_id_map.capacity()
+                * (std::mem::size_of::<TaxaPtr<T>>() + std::mem::size_of::<NodeID>())
+        }
+
+        /// Returns the total bytes this tree has allocated on the heap.
+        ///
+        /// The sum of [`Self::arena_heap_size`] and [`Self::taxa_map_heap_size`].
+        /// Taxa values are excluded, as described on those methods. The LCA
+        /// index is no longer stored on the tree; measure it via
+        /// [`LcaOracle::heap_size`] on an oracle built with [`EulerWalk::lca`].
+        pub fn heap_size(&self) -> usize {
+            self.arena_heap_size() + self.taxa_map_heap_size()
         }
     }
 
@@ -180,12 +284,14 @@ mod simple_rooted_tree {
             let root_node = Node::new(0);
             let mut nodes = vec![None; 1];
             nodes[0] = Some(root_node);
-            SimpleRootedTree {
+            let mut tree = SimpleRootedTree {
                 root: 0,
                 nodes,
                 taxa_node_id_map: [].into_iter().collect::<HashMap<_, _>>(),
-                lca_index: None,
-            }
+                first_free: 0,
+            };
+            tree.recompute_first_free();
+            tree
         }
 
         /// Creates tree with specified capacity
@@ -193,25 +299,40 @@ mod simple_rooted_tree {
             let root_node = Node::new(0);
             let mut nodes = vec![None; capacity];
             nodes[0] = Some(root_node);
-            SimpleRootedTree {
+            let mut tree = SimpleRootedTree {
                 root: 0,
                 nodes,
                 taxa_node_id_map: [].into_iter().collect::<HashMap<_, _>>(),
-                lca_index: None,
-            }
+                first_free: 0,
+            };
+            tree.recompute_first_free();
+            tree
         }
 
         fn from_nodes(nodes: Vec<Option<Self::Node>>, root_id: TreeNodeID<Self>) -> Self {
-            SimpleRootedTree {
+            // Rebuild taxa_node_id_map from the nodes, exactly as `Deserialize`
+            // does. `from_nodes` is public, so a caller passing taxa-bearing
+            // nodes must get working taxa lookups (num_taxa, get_taxa_node_id,
+            // ...) without a separate re-register pass; leaving the map empty
+            // would make those queries silently return nothing.
+            let mut taxa_node_id_map: HashMap<TaxaPtr<T>, NodeID> = [].into_iter().collect();
+            for node in nodes.iter().flatten() {
+                if let Some(arc) = node.get_taxa_arc() {
+                    taxa_node_id_map.insert(TaxaPtr(arc.clone()), node.get_id());
+                }
+            }
+            let mut tree = SimpleRootedTree {
                 root: root_id,
                 nodes,
-                taxa_node_id_map: [].into_iter().collect::<HashMap<_, _>>(),
-                lca_index: None,
-            }
+                taxa_node_id_map,
+                first_free: 0,
+            };
+            tree.recompute_first_free();
+            tree
         }
 
         /// Returns reference to node by ID
-        fn get_node<'a>(&'a self, node_id: TreeNodeID<Self>) -> Option<&'a Node<T, W, Z>> {
+        fn get_node(&self, node_id: TreeNodeID<Self>) -> Option<&Node<T, W, Z>> {
             self.nodes[node_id].as_ref()
         }
 
@@ -223,12 +344,15 @@ mod simple_rooted_tree {
             (0..self.nodes.len()).filter(|x| self.nodes[*x].is_some())
         }
 
-        fn get_nodes_mut<'a>(&'a mut self) -> impl Iterator<Item = &'a mut Self::Node> {
+        fn get_nodes_mut(&mut self) -> impl Iterator<Item = &mut Self::Node> {
             self.nodes.iter_mut().filter_map(|x| x.as_mut())
         }
 
         fn set_node(&mut self, node: Node<T, W, Z>) {
             let node_id = node.get_id();
+            // Whatever was in this slot is about to be replaced; its taxon must
+            // not outlive it in the map.
+            self.forget_taxa(node_id);
             if let Some(arc) = node.get_taxa_arc() {
                 self.taxa_node_id_map
                     .insert(TaxaPtr(arc.clone()), node.get_id());
@@ -241,6 +365,7 @@ mod simple_rooted_tree {
                     self.nodes[node_id] = Some(node);
                 }
             };
+            self.note_slot_filled(node_id);
         }
 
         fn get_root_id(&self) -> TreeNodeID<Self> {
@@ -253,13 +378,24 @@ mod simple_rooted_tree {
 
         fn remove_node(&mut self, node_id: TreeNodeID<Self>) -> Option<Node<T, W, Z>> {
             if let Some(pid) = self.get_node_parent_id(node_id) {
-                self.get_node_mut(pid).unwrap().remove_child(&node_id)
+                // The parent may already be gone: a node keeps recording its
+                // parent id after that parent is removed, so unwrapping here
+                // panics when a node outlives its parent. If there is no
+                // parent, there is no child link to unlink.
+                if let Some(parent) = self.get_node_mut(pid) {
+                    parent.remove_child(&node_id)
+                }
             }
-            self.nodes[node_id].take()
+            self.forget_taxa(node_id);
+            let removed = self.nodes[node_id].take();
+            self.note_slot_vacated(node_id);
+            removed
         }
 
         fn delete_node(&mut self, node_id: TreeNodeID<Self>) {
+            self.forget_taxa(node_id);
             let _ = self.nodes[node_id].take();
+            self.note_slot_vacated(node_id);
         }
 
         fn clear(&mut self) {
@@ -267,11 +403,12 @@ mod simple_rooted_tree {
             let root_node_id = root_node.get_id();
             self.nodes = vec![None; root_node_id + 1];
             self.nodes[root_node_id] = Some(root_node);
+            self.recompute_first_free();
             self.taxa_node_id_map.clear();
         }
 
         /// Supresses all nodes of degree 2
-        fn supress_unifurcations<'a>(&'a mut self) {
+        fn supress_unifurcations(&mut self) {
             let post_ord_node_ids = self.postord_ids(self.get_root_id()).collect_vec();
             for node_id in post_ord_node_ids {
                 if !self.is_leaf(node_id) && node_id != self.root {
@@ -303,6 +440,11 @@ mod simple_rooted_tree {
         }
 
         fn set_node_taxa(&mut self, node_id: TreeNodeID<Self>, taxa: Option<TreeNodeMeta<Self>>) {
+            // The map is keyed by Arc identity, so a new label inserts a new
+            // entry rather than overwriting one. Without dropping the old key
+            // first, relabelling grows the map without bound and the previous
+            // name goes on resolving.
+            self.forget_taxa(node_id);
             if let Some(t) = taxa {
                 let arc = Arc::new(t);
                 self.get_node_mut(node_id)
@@ -318,7 +460,7 @@ mod simple_rooted_tree {
             self.taxa_node_id_map.len()
         }
 
-        fn get_taxa_space<'a>(&'a self) -> impl ExactSizeIterator<Item = &'a TreeNodeMeta<Self>> {
+        fn get_taxa_space(&self) -> impl Iterator<Item = &TreeNodeMeta<Self>> {
             self.taxa_node_id_map.keys().map(|tp| tp.0.as_ref())
         }
 
@@ -415,10 +557,13 @@ mod simple_rooted_tree {
         Z: NodeWeight,
     {
         fn unweight(&mut self) {
+            // `flatten` yields the occupied slots; the previous body filtered
+            // for empty slots and unwrapped them, so it panicked on the first
+            // hole and never touched a real node.
             self.nodes
                 .iter_mut()
-                .filter(|x| x.is_none())
-                .for_each(|x| x.as_mut().unwrap().unweight());
+                .flatten()
+                .for_each(|node| node.unweight());
         }
     }
 
@@ -485,13 +630,16 @@ mod simple_rooted_tree {
         Z: NodeWeight,
     {
         fn matrix(&self) -> Vec<Vec<TreeNodeWeight<Self>>> {
+            // One euler-tour index, shared across every pair, rather than the
+            // naive per-call rebuild the old signature forced.
+            let oracle = self.lca();
             let mut out_mat = vec![vec![W::infinity(); self.nodes.len()]; self.nodes.len()];
             for node_ids in self.postord_ids(self.get_root_id()).combinations(2) {
                 let n1 = node_ids[0];
                 let n2 = node_ids[1];
                 out_mat[n1][n1] = W::zero();
                 out_mat[n2][n2] = W::zero();
-                out_mat[n1][n2] = self.pairwise_distance(n1, n2);
+                out_mat[n1][n2] = self.pairwise_distance(&oracle, n1, n2);
                 out_mat[n2][n1] = out_mat[n1][n2];
             }
             out_mat
@@ -499,10 +647,11 @@ mod simple_rooted_tree {
 
         fn pairwise_distance(
             &self,
+            oracle: &LcaOracle<'_, Self>,
             node_id_1: TreeNodeID<Self>,
             node_id_2: TreeNodeID<Self>,
         ) -> TreeNodeWeight<Self> {
-            let lca = self.get_lca_id(vec![node_id_1, node_id_2].as_slice());
+            let lca = oracle.get_lca_id(vec![node_id_1, node_id_2].as_slice());
             let d1: TreeNodeWeight<Self> = self
                 .node_to_root_ids(node_id_1)
                 .map(|x| match x == self.get_root_id() {
@@ -544,10 +693,7 @@ mod simple_rooted_tree {
             DFSPostOrderIterator::new(self, start_node).map(|x| x.get_id())
         }
 
-        fn postord_nodes<'a>(
-            &'a self,
-            start_node: TreeNodeID<Self>,
-        ) -> impl Iterator<Item = &'a Self::Node> {
+        fn postord_nodes(&self, start_node: TreeNodeID<Self>) -> impl Iterator<Item = &Self::Node> {
             DFSPostOrderIterator::new(self, start_node)
         }
     }
@@ -558,10 +704,7 @@ mod simple_rooted_tree {
         W: EdgeWeight,
         Z: NodeWeight,
     {
-        fn bfs_nodes<'a>(
-            &'a self,
-            start_node_id: TreeNodeID<Self>,
-        ) -> impl Iterator<Item = &'a Self::Node> {
+        fn bfs_nodes(&self, start_node_id: TreeNodeID<Self>) -> impl Iterator<Item = &Self::Node> {
             BFSIterator::new(self, start_node_id)
         }
 
@@ -715,7 +858,9 @@ mod simple_rooted_tree {
                 root: new_tree_root_id,
                 nodes: vec![None; self.nodes.len()],
                 taxa_node_id_map: vec![].into_iter().collect(),
-                lca_index: None,
+                // The arena starts wholly vacant; `set_nodes` fills it and
+                // maintains the invariant from there.
+                first_free: 0,
             };
             new_tree.set_nodes(new_nodes);
             Ok(new_tree)
@@ -733,127 +878,24 @@ mod simple_rooted_tree {
                 root: new_tree_root_id,
                 nodes: vec![None; self.nodes.len()],
                 taxa_node_id_map: vec![].into_iter().collect(),
-                lca_index: None,
+                // The arena starts wholly vacant; `set_nodes` fills it and
+                // maintains the invariant from there.
+                first_free: 0,
             };
             new_tree.set_nodes(new_nodes);
             Ok(new_tree)
         }
     }
 
+    // All `EulerWalk` methods are trait defaults; the euler walks read only
+    // topology and the LCA index now lives in a borrowing [`LcaOracle`] built
+    // by [`EulerWalk::lca`], so this tree needs no overrides.
     impl<T, W, Z> EulerWalk for SimpleRootedTree<T, W, Z>
     where
         T: NodeTaxa,
         W: EdgeWeight,
         Z: NodeWeight,
     {
-        fn precompute_walk(&mut self) {
-            if self.lca_index.is_none() {
-                self.precompute_constant_time_lca();
-            }
-        }
-
-        fn precompute_fai(&mut self) {
-            if self.lca_index.is_none() {
-                self.precompute_constant_time_lca();
-            }
-        }
-
-        fn precompute_da(&mut self) {
-            if self.lca_index.is_none() {
-                self.precompute_constant_time_lca();
-            }
-        }
-
-        fn precompute_constant_time_lca(&mut self) {
-            let euler: Vec<NodeID> = self.euler_walk_ids(self.get_root_id()).collect_vec();
-
-            let max_id = self.get_node_ids().max().unwrap();
-            let mut fai = vec![None; max_id + 1];
-            for node_id in self.get_node_ids() {
-                fai[node_id] = Some(euler.iter().position(|x| x == &node_id).unwrap());
-            }
-
-            let da: Vec<usize> = euler
-                .iter()
-                .map(|x| RootedTree::get_node_depth(self, *x))
-                .collect();
-            let rmq = BinaryRmq::from_vec(da.iter().map(|x| *x as u64).collect_vec());
-
-            self.lca_index = Some(LcaIndex {
-                euler,
-                fai,
-                da,
-                rmq,
-            });
-        }
-
-        fn get_precomputed_walk(
-            &self,
-        ) -> Option<&Vec<<<Self as RootedTree>::Node as RootedTreeNode>::NodeID>> {
-            self.lca_index.as_ref().map(|idx| &idx.euler)
-        }
-
-        fn get_precomputed_fai(
-            &self,
-        ) -> Option<impl Index<TreeNodeID<Self>, Output = Option<usize>>> {
-            self.lca_index.as_ref().map(|idx| idx.fai.clone())
-        }
-
-        fn get_precomputed_da(&self) -> Option<&Vec<usize>> {
-            self.lca_index.as_ref().map(|idx| &idx.da)
-        }
-
-        fn is_euler_precomputed(&self) -> bool {
-            self.lca_index.is_some()
-        }
-
-        fn first_appearance(&self) -> impl Index<TreeNodeID<Self>, Output = Option<usize>> {
-            let max_id = self.get_node_ids().max().unwrap();
-            let mut fa = vec![None; max_id + 1];
-            match self.get_precomputed_walk() {
-                Some(walk) => {
-                    for node_id in self.get_node_ids() {
-                        fa[node_id] = Some(walk.iter().position(|x| x == &node_id).unwrap());
-                    }
-                }
-                None => {
-                    let walk = self.euler_walk_ids(self.get_root_id()).collect_vec();
-                    for node_id in self.get_node_ids() {
-                        fa[node_id] = Some(walk.iter().position(|x| x == &node_id).unwrap());
-                    }
-                }
-            }
-            fa
-        }
-
-        fn get_fa_index(&self, node_id: TreeNodeID<Self>) -> usize {
-            match &self.lca_index {
-                Some(idx) => idx.fai[node_id].unwrap(),
-                None => self.first_appearance()[node_id].unwrap(),
-            }
-        }
-
-        fn get_lca_id(&self, node_id_vec: &[TreeNodeID<Self>]) -> TreeNodeID<Self> {
-            let min_pos = node_id_vec
-                .iter()
-                .map(|x| self.get_fa_index(*x))
-                .min()
-                .unwrap();
-            let max_pos = node_id_vec
-                .iter()
-                .map(|x| self.get_fa_index(*x))
-                .max()
-                .unwrap();
-
-            match self.lca_index.as_ref() {
-                Some(idx) => self.get_euler_pos(idx.rmq.range_min(min_pos, max_pos)),
-                None => {
-                    let da = self.depth_array();
-                    let rmq = BinaryRmq::from_vec(da.iter().map(|x| *x as u64).collect_vec());
-                    self.get_euler_pos(rmq.range_min(min_pos, max_pos))
-                }
-            }
-        }
     }
 
     impl<T, W, Z> Clusters for SimpleRootedTree<T, W, Z>
@@ -864,7 +906,7 @@ mod simple_rooted_tree {
     {
         fn get_median_node_id_for_leaves(
             &self,
-            taxa_set: impl ExactSizeIterator<Item = TreeNodeID<Self>>,
+            taxa_set: impl Iterator<Item = TreeNodeID<Self>>,
         ) -> TreeNodeID<Self> {
             let mut cluster_sizes = vec![0; self.nodes.len()];
             let mut median_node_id: TreeNodeID<Self> = self.get_root_id();
@@ -894,16 +936,16 @@ mod simple_rooted_tree {
             median_node_id
         }
 
-        fn get_median_node_for_leaves<'a>(
-            &'a self,
-            taxa_set: impl ExactSizeIterator<Item = TreeNodeID<Self>>,
-        ) -> &'a Self::Node {
+        fn get_median_node_for_leaves(
+            &self,
+            taxa_set: impl Iterator<Item = TreeNodeID<Self>>,
+        ) -> &Self::Node {
             self.get_node(self.get_median_node_id_for_leaves(taxa_set))
                 .unwrap()
         }
 
         /// Returns an immutable reference to median node of all leaves in a tree.
-        fn get_median_node<'a>(&'a self) -> &'a Self::Node {
+        fn get_median_node(&self) -> &Self::Node {
             let leaves = self.get_leaves().map(|x| x.get_id());
             self.get_median_node_for_leaves(leaves)
         }
@@ -921,152 +963,67 @@ mod simple_rooted_tree {
         W: EdgeWeight,
         Z: NodeWeight,
     {
-        fn from_newick(newick_str: &[u8]) -> std::io::Result<Self> {
-            let mut tree = SimpleRootedTree::new(0);
-            let mut stack: Vec<TreeNodeID<Self>> = Vec::new();
-            let mut context: TreeNodeID<Self> = tree.get_root_id();
-            let mut taxa_str = String::new();
-            let mut decimal_str: String = String::new();
-            let mut str_ptr: usize = 0;
-            let newick_string = String::from_utf8(newick_str.to_vec())
-                .unwrap()
-                .chars()
-                .filter(|c| !c.is_whitespace())
-                .collect::<Vec<char>>();
-            while str_ptr < newick_string.len() {
-                match newick_string[str_ptr] {
-                    '(' => {
-                        stack.push(context);
-                        let new_node = Node::new(tree.next_id());
-                        context = new_node.get_id();
-                        tree.set_node(new_node);
-                        str_ptr += 1;
-                    }
-                    ')' | ',' => {
-                        // last context id
-                        let last_context = stack.last().ok_or_else(|| {
-                            std::io::Error::new(
-                                std::io::ErrorKind::InvalidData,
-                                NewickError::InvalidCharacter { idx: str_ptr },
-                            )
-                        })?;
-                        // add current context as a child to last context
-                        tree.set_child(*last_context, context);
-                        tree.set_edge_weight(
-                            (*last_context, context),
-                            decimal_str.parse::<TreeNodeWeight<Self>>().ok(),
-                        );
-                        if !taxa_str.is_empty() {
-                            tree.set_node_taxa(context, T::from_str(&taxa_str).ok());
-                        }
-                        // we clear the strings
-                        taxa_str.clear();
-                        decimal_str.clear();
-
-                        match newick_string[str_ptr] {
-                            ',' => {
-                                let new_node = Node::new(tree.next_id());
-                                context = new_node.get_id();
-                                tree.set_node(new_node);
-                                str_ptr += 1;
-                            }
-                            _ => {
-                                context = stack.pop().ok_or_else(|| {
-                                    std::io::Error::new(
-                                        std::io::ErrorKind::InvalidData,
-                                        NewickError::InvalidCharacter { idx: str_ptr },
-                                    )
-                                })?;
-                                str_ptr += 1;
-                            }
-                        }
-                    }
-                    ';' => {
-                        if !taxa_str.is_empty() {
-                            tree.set_node_taxa(context, T::from_str(&taxa_str).ok());
-                        }
-                        break;
-                    }
-                    ':' => {
-                        // if the current context had a weight
-                        if newick_string[str_ptr] == ':' {
-                            str_ptr += 1;
-                            while newick_string[str_ptr] != ';'
-                                && newick_string[str_ptr] != ','
-                                && newick_string[str_ptr] != ')'
-                                && newick_string[str_ptr] != '('
-                            {
-                                decimal_str.push(newick_string[str_ptr]);
-                                str_ptr += 1;
-                            }
-                        }
-                    }
-                    _ => {
-                        // push taxa characters into taxa string
-                        if newick_string[str_ptr] == '\'' {
-                            // --- Quoted Label Parsing ---
-                            str_ptr += 1; // consume opening quote
-                            while str_ptr < newick_string.len() {
-                                if newick_string[str_ptr] == '\'' {
-                                    // Check for escaped quote ('')
-                                    if str_ptr + 1 < newick_string.len()
-                                        && newick_string[str_ptr + 1] == '\''
-                                    {
-                                        taxa_str.push('\''); // push a single quote
-                                        str_ptr += 2; // consume both quotes
-                                    } else {
-                                        // End of quoted label
-                                        str_ptr += 1; // consume closing quote
-                                        break;
-                                    }
-                                } else {
-                                    taxa_str.push(newick_string[str_ptr]);
-                                    str_ptr += 1;
-                                }
-                            }
-                        } else {
-                            // --- Unquoted Label Parsing (original logic) ---
-                            while str_ptr < newick_string.len()
-                                && newick_string[str_ptr] != ':'
-                                && newick_string[str_ptr] != ')'
-                                && newick_string[str_ptr] != ','
-                                && newick_string[str_ptr] != '('
-                                && newick_string[str_ptr] != ';'
-                            {
-                                taxa_str.push(newick_string[str_ptr]);
-                                str_ptr += 1;
-                            }
-                        }
-                    }
-                }
-            }
-            Ok(tree)
+        fn from_newick_with<H: AnnotationHandler>(
+            newick_str: &[u8],
+            annotations: H,
+        ) -> std::io::Result<Self> {
+            let input = std::str::from_utf8(newick_str)
+                .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
+            crate::tree::newick::parse_newick(input, &annotations)
+                .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))
         }
 
-        fn subtree_to_newick(&self, node_id: TreeNodeID<Self>) -> impl std::fmt::Display {
-            let node = self.get_node(node_id).unwrap();
-            let mut tmp = String::new();
-            if !node.get_children().is_empty() {
-                if node.get_children().len() > 1 {
-                    tmp.push('(');
+        fn subtree_to_newick_with<H: AnnotationWriter>(
+            &self,
+            node_id: TreeNodeID<Self>,
+            annotations: H,
+        ) -> impl std::fmt::Display {
+            // Iterative Euler-tour walk writing into a single buffer: no
+            // recursion (so tree height cannot overflow the stack) and no
+            // per-subtree string allocation (so the cost is O(n), not the
+            // O(n * height) of rebuilding a string at every level). Each stack
+            // frame is (node id, index of the next child to emit).
+            let mut out = String::new();
+            let mut stack: Vec<(TreeNodeID<Self>, usize)> = vec![(node_id, 0)];
+            while let Some(&(nid, child_idx)) = stack.last() {
+                let node = self.get_node(nid).unwrap();
+                let children = node.get_children();
+                // Parenthesise only nodes with more than one child, matching the
+                // original serialiser (a unary node is flattened).
+                if child_idx == 0 && children.len() > 1 {
+                    out.push('(');
                 }
-                for &child_id in node.get_children() {
-                    let child_str = format!("{},", self.subtree_to_newick(child_id));
-                    tmp.push_str(&child_str);
-                }
-                tmp.pop();
-                if node.get_children().len() > 1 {
-                    tmp.push(')');
+                if child_idx < children.len() {
+                    if child_idx > 0 {
+                        out.push(',');
+                    }
+                    let child = children[child_idx];
+                    stack.last_mut().unwrap().1 += 1;
+                    stack.push((child, 0));
+                } else {
+                    // All children emitted: close the subtree, then this node's
+                    // own label and branch length.
+                    if children.len() > 1 {
+                        out.push(')');
+                    }
+                    if let Some(taxa_str) = &node.get_taxa() {
+                        out.push_str(&taxa_str.to_string());
+                    }
+                    // The writer decides what (if anything) a stored annotation
+                    // contributes; the default emits it verbatim after the label.
+                    if let Some(annotation) = node.get_annotation() {
+                        if let Some(rendered) = annotations.render(annotation) {
+                            out.push_str(&rendered);
+                        }
+                    }
+                    if let Some(w) = node.get_weight() {
+                        out.push(':');
+                        out.push_str(&w.to_string());
+                    }
+                    stack.pop();
                 }
             }
-            if let Some(taxa_str) = &node.get_taxa() {
-                tmp.push_str(&taxa_str.to_string());
-            };
-            if let Some(w) = node.get_weight() {
-                tmp.push(':');
-                tmp.push_str(&w.to_string());
-            }
-            tmp
+            out
         }
     }
 
@@ -1223,10 +1180,9 @@ mod simple_rooted_tree {
             S: serde::Serializer,
         {
             use serde::ser::SerializeStruct;
-            let mut state = serializer.serialize_struct("SimpleRootedTree", 3)?;
+            let mut state = serializer.serialize_struct("SimpleRootedTree", 2)?;
             state.serialize_field("root", &self.root)?;
             state.serialize_field("nodes", &self.nodes)?;
-            state.serialize_field("lca_index", &self.lca_index)?;
             state.end()
         }
     }
@@ -1251,7 +1207,6 @@ mod simple_rooted_tree {
             {
                 root: NodeID,
                 nodes: Vec<Option<Node<T, W, Z>>>,
-                lca_index: Option<LcaIndex>,
             }
 
             let helper: Helper<T, W, Z> = Helper::deserialize(deserializer)?;
@@ -1264,12 +1219,16 @@ mod simple_rooted_tree {
                 }
             }
 
-            Ok(SimpleRootedTree {
+            let mut tree = SimpleRootedTree {
                 root: helper.root,
                 nodes: helper.nodes,
                 taxa_node_id_map,
-                lca_index: helper.lca_index,
-            })
+                first_free: 0,
+            };
+            // Derived from the arena, exactly like `taxa_node_id_map` above, so
+            // it stays out of the serialized form and is rebuilt on the way in.
+            tree.recompute_first_free();
+            Ok(tree)
         }
     }
 
