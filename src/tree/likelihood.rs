@@ -1,14 +1,19 @@
 //! Phylogenetic likelihood under a substitution model.
 //!
 //! Felsenstein's pruning algorithm over a tree and an [`Alignment`], generalized
-//! across the rate categories of a [`GtrModel`]. Both engines here compute the
-//! tree's log-likelihood; ancestral state reconstruction (see [`crate::tree::asr`])
-//! is built on top of them.
+//! across the rate categories of a [`GtrModel`].
 //!
-//! Note the current seam: the engines return a [`Reconstruction`], so the
-//! log-likelihood is only reachable by also reconstructing states. Separating
-//! those requires making pruning reusable and generic over `RootedTree`, which
-//! is deliberately not done here.
+//! [`compute_log_likelihood`] returns just the tree's log-likelihood — the
+//! Felsenstein up pass, no ancestral states. [`compute_marginal_asr`] reuses the
+//! same per-pattern pruning core (`prune_pattern_category`) and adds a pre-order
+//! down pass to reconstruct states and posteriors, so the two never drift. The
+//! [`TreeLikelihood`] trait exposes the likelihood-only path.
+//!
+//! The joint (Viterbi) engine keeps its own recursion: it maximizes rather than
+//! sums over states (a different semiring), so it cannot share the marginal core.
+//!
+//! Making pruning generic over `RootedTree` (rather than concrete in `PhyloTree`)
+//! is a deliberate non-goal here.
 
 /// Likelihood profiles and scaling for numerical stability.
 pub mod profile;
@@ -20,6 +25,20 @@ pub mod reconstruction;
 mod integration_test;
 
 pub use self::reconstruction::Reconstruction;
+
+/// Log-likelihood of an alignment given a tree and a substitution model.
+///
+/// Feature-free (like [`crate::tree::asr::MarginalAsr`]) so a caller bringing its
+/// own tree type can implement it without `simple_rooted_tree`.
+pub trait TreeLikelihood {
+    /// Natural-log likelihood of `aln` given this tree and `model`, computed with
+    /// Felsenstein's pruning algorithm. No ancestral states are reconstructed.
+    fn log_likelihood<A: crate::alphabet::Alphabet>(
+        &self,
+        model: &crate::models::GtrModel<A>,
+        aln: &crate::alignment::Alignment,
+    ) -> Result<f64, crate::error::AsrError>;
+}
 
 // Every engine here is concrete in PhyloTree, so the module's imports gate as a
 // block. What stays available without the feature is `crate::tree::asr`, which
@@ -43,6 +62,144 @@ fn log_sum_exp(xs: &[f64]) -> f64 {
     }
     let sum: f64 = xs.iter().map(|&x| (x - max).exp()).sum();
     max + sum.ln()
+}
+
+/// Felsenstein's pruning up pass for a single compressed pattern under a single
+/// rate category.
+///
+/// Runs the rooted post-order traversal, building a scaled likelihood [`Profile`]
+/// at every node (branch lengths scaled by category `cat_idx`'s rate), and returns
+/// the profile map together with this category's log-likelihood contribution
+/// `ln(weight) + ln(root_mass) + root_log_scale`.
+///
+/// This is the shared core: [`compute_log_likelihood`] keeps only the returned
+/// `cat_ll` (dropping the profiles), while [`compute_marginal_asr`] retains the
+/// profiles to seed its down pass. There is exactly one pruning recursion.
+#[cfg(feature = "simple_rooted_tree")]
+#[allow(clippy::too_many_arguments)]
+fn prune_pattern_category<A: Alphabet>(
+    tree: &PhyloTree,
+    model: &GtrModel<A>,
+    cat_idx: usize,
+    category_weight: f64,
+    pattern: &[u8],
+    leaf_id_map: &[NodeID],
+    postord: &[NodeID],
+    pi: &DVector<f64>,
+    n_states: usize,
+) -> Result<(HashMap<NodeID, Profile>, f64), AsrError> {
+    let root = tree.get_root_id();
+    let mut profiles: HashMap<NodeID, Profile> = HashMap::new();
+
+    for v in postord {
+        if tree.is_leaf(*v) {
+            let pos = leaf_id_map.iter().position(|&id| id == *v).ok_or_else(|| {
+                AsrError::InvalidAlignment(
+                    "Leaf in tree not found in alignment leaf order".to_string(),
+                )
+            })?;
+            let char_val = pattern[pos];
+            let prof_vals = A::profile(char_val).ok_or_else(|| {
+                AsrError::AlphabetMismatch("Invalid char in alignment".to_string())
+            })?;
+            profiles.insert(*v, Profile::new(prof_vals, 0.0).scale());
+        } else {
+            let mut v_vals = DVector::from_element(n_states, 1.0);
+            let mut sum_log_scale = 0.0;
+
+            for c in tree.get_node_children_ids(*v) {
+                let prof_c = profiles.get(&c).ok_or(AsrError::NumericalInstability)?;
+                let weight = tree
+                    .get_edge_weight(*v, c)
+                    .and_then(NumCast::from)
+                    .unwrap_or(0.0);
+                let p_t = model.category_transition(cat_idx, weight);
+
+                let child_contrib = p_t * DVector::from_vec(prof_c.values.clone());
+
+                for i in 0..n_states {
+                    v_vals[i] *= child_contrib[i];
+                }
+                sum_log_scale += prof_c.log_scale;
+            }
+            profiles.insert(
+                *v,
+                Profile::new(v_vals.as_slice().to_vec(), sum_log_scale).scale(),
+            );
+        }
+    }
+
+    let root_prof = profiles.get(&root).ok_or(AsrError::NumericalInstability)?;
+    let mut root_mass = 0.0;
+    for i in 0..n_states {
+        root_mass += pi[i] * root_prof.values[i];
+    }
+    let cat_ll = category_weight.ln() + root_mass.ln() + root_prof.log_scale;
+
+    Ok((profiles, cat_ll))
+}
+
+/// Log-likelihood of an alignment given a tree and a substitution model.
+///
+/// Felsenstein's pruning up pass only: for each compressed alignment pattern the
+/// per-category log-likelihoods (`prune_pattern_category`) are mixed with
+/// [`log_sum_exp`] and accumulated by pattern multiplicity. No down pass, and no
+/// per-node sequence/posterior allocation — unlike [`compute_marginal_asr`], whose
+/// `log_likelihood` field this reproduces exactly.
+///
+/// Concrete in `PhyloTree`, so it is gated on the feature that defines it. The
+/// [`TreeLikelihood`] trait itself stays available without that feature.
+#[cfg(feature = "simple_rooted_tree")]
+pub fn compute_log_likelihood<A>(
+    tree: &PhyloTree,
+    model: &GtrModel<A>,
+    aln: &Alignment,
+) -> Result<f64, AsrError>
+where
+    A: Alphabet,
+{
+    let comp = aln.compress_columns();
+    let root = tree.get_root_id();
+    let n_states = A::N_STATES;
+    let pi = model.equilibrium();
+    let categories = model.categories();
+    let n_categories = categories.len();
+
+    // Map alignment leaf order to NodeIDs.
+    let mut leaf_id_map = Vec::with_capacity(comp.leaf_order.len());
+    for name in &comp.leaf_order {
+        let node_id = tree.get_taxa_node_id(name).ok_or_else(|| {
+            AsrError::AlphabetMismatch(format!("Taxon {} in alignment not found in tree", name))
+        })?;
+        leaf_id_map.push(node_id);
+    }
+
+    let postord = tree.postord_ids(root).collect::<Vec<_>>();
+
+    let mut total_log_likelihood = 0.0;
+    for (p_idx, pattern) in comp.patterns.iter().enumerate() {
+        let multiplicity = comp.multiplicity[p_idx] as f64;
+
+        let mut cat_log_likelihoods = Vec::with_capacity(n_categories);
+        for (cat_idx, category) in categories.iter().enumerate() {
+            let (_profiles, cat_ll) = prune_pattern_category(
+                tree,
+                model,
+                cat_idx,
+                category.weight,
+                pattern,
+                &leaf_id_map,
+                &postord,
+                pi,
+                n_states,
+            )?;
+            cat_log_likelihoods.push(cat_ll);
+        }
+
+        total_log_likelihood += multiplicity * log_sum_exp(&cat_log_likelihoods);
+    }
+
+    Ok(total_log_likelihood)
 }
 
 /// Internal implementation of Marginal ASR logic.
@@ -112,54 +269,21 @@ where
         let mut cat_posteriors: Vec<HashMap<NodeID, Vec<f64>>> = Vec::with_capacity(n_categories);
 
         for (cat_idx, category) in categories.iter().enumerate() {
-            // UP pass: Rooted post-order traversal
-            let mut profiles: HashMap<NodeID, Profile> = HashMap::new();
-
-            for v in &postord {
-                if tree.is_leaf(*v) {
-                    let pos = leaf_id_map.iter().position(|&id| id == *v).ok_or_else(|| {
-                        AsrError::InvalidAlignment(
-                            "Leaf in tree not found in alignment leaf order".to_string(),
-                        )
-                    })?;
-                    let char_val = pattern[pos];
-                    let prof_vals = A::profile(char_val).ok_or_else(|| {
-                        AsrError::AlphabetMismatch("Invalid char in alignment".to_string())
-                    })?;
-                    profiles.insert(*v, Profile::new(prof_vals, 0.0).scale());
-                } else {
-                    let mut v_vals = DVector::from_element(n_states, 1.0);
-                    let mut sum_log_scale = 0.0;
-
-                    for c in tree.get_node_children_ids(*v) {
-                        let prof_c = profiles.get(&c).ok_or(AsrError::NumericalInstability)?;
-                        let weight = tree
-                            .get_edge_weight(*v, c)
-                            .and_then(NumCast::from)
-                            .unwrap_or(0.0);
-                        let p_t = model.category_transition(cat_idx, weight);
-
-                        let child_contrib = p_t * DVector::from_vec(prof_c.values.clone());
-
-                        for i in 0..n_states {
-                            v_vals[i] *= child_contrib[i];
-                        }
-                        sum_log_scale += prof_c.log_scale;
-                    }
-                    profiles.insert(
-                        *v,
-                        Profile::new(v_vals.as_slice().to_vec(), sum_log_scale).scale(),
-                    );
-                }
-            }
-
-            let root_prof = profiles.get(&root).unwrap();
-            let mut root_mass = 0.0;
-            for i in 0..n_states {
-                root_mass += pi[i] * root_prof.values[i];
-            }
-            let cat_ll = category.weight.ln() + root_mass.ln() + root_prof.log_scale;
+            // UP pass: shared Felsenstein pruning core (see `prune_pattern_category`).
+            // The profiles are retained here to seed the marginal down pass below.
+            let (profiles, cat_ll) = prune_pattern_category(
+                tree,
+                model,
+                cat_idx,
+                category.weight,
+                pattern,
+                &leaf_id_map,
+                &postord,
+                pi,
+                n_states,
+            )?;
             cat_log_likelihoods.push(cat_ll);
+            let root_prof = profiles.get(&root).unwrap();
 
             // DOWN pass: Pre-order traversal, marginal posteriors for this category.
             let mut node_posteriors: HashMap<NodeID, Vec<f64>> = HashMap::new();

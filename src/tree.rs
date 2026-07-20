@@ -39,6 +39,7 @@ mod simple_rooted_tree {
     use std::collections::{HashMap, HashSet};
 
     use crate::tree::asr::{JointAsr, MarginalAsr};
+    use crate::tree::likelihood::TreeLikelihood;
 
     /// Type alias for Phylogenetic tree.
     pub type PhyloTree = SimpleRootedTree<String, f32, f32>;
@@ -61,6 +62,16 @@ mod simple_rooted_tree {
             aln: &Alignment,
         ) -> Result<Reconstruction<A>, AsrError> {
             crate::tree::likelihood::compute_joint_asr(self, model, aln)
+        }
+    }
+
+    impl TreeLikelihood for PhyloTree {
+        fn log_likelihood<A: Alphabet>(
+            &self,
+            model: &GtrModel<A>,
+            aln: &Alignment,
+        ) -> Result<f64, AsrError> {
+            crate::tree::likelihood::compute_log_likelihood(self, model, aln)
         }
     }
 
