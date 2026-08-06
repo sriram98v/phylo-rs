@@ -420,21 +420,29 @@ where
         // Without it every `get_lca_id` call would rebuild the whole index.
         let oracle = self.lca();
 
+        // LCA(l_i, l_j) for every j < i, held across both passes below. Each is
+        // an O(1) oracle query, but there are O(n^2) of them, and the deepest-LCA
+        // pass and the sibling filter want the same set -- recomputing it for the
+        // second pass doubled the query count for no gain. Reused across
+        // iterations of `i` so the growing buffer is allocated once.
+        let mut lcas: Vec<TreeNodeID<Self>> = Vec::with_capacity(n);
+
         // Step 2: for each leaf l_i (i >= 1), find its sibling in the restricted tree T^i
         for i in 1..n {
             let li = leaf_ids[i];
 
+            lcas.clear();
+            lcas.extend((0..i).map(|j| oracle.get_lca_id(&[li, leaf_ids[j]])));
+
             // The parent of l_i in T^i is the LCA(l_i, l_j) with the greatest depth over all j < i
-            let p_id = (0..i)
-                .map(|j| oracle.get_lca_id(&[li, leaf_ids[j]]))
-                .max_by_key(|&lca| oracle.get_node_depth(lca))
+            let p_id = *lcas
+                .iter()
+                .max_by_key(|&&lca| oracle.get_node_depth(lca))
                 .unwrap();
 
             // Sibling's leaves in T^{i-1}: those l_j (j < i) whose LCA with l_i is exactly p_id,
             // meaning they live on the opposite side of p_id from l_i
-            let sibling_indices: Vec<usize> = (0..i)
-                .filter(|&j| oracle.get_lca_id(&[li, leaf_ids[j]]) == p_id)
-                .collect();
+            let sibling_indices: Vec<usize> = (0..i).filter(|&j| lcas[j] == p_id).collect();
 
             let entry = if sibling_indices.len() == 1 {
                 // Sibling is a single leaf: entry = its index in σ (non-negative)
