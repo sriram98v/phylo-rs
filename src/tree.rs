@@ -425,8 +425,13 @@ mod simple_rooted_tree {
                 if !self.is_leaf(node_id) && node_id != self.root {
                     let node_degree = self.node_degree(node_id);
                     if node_degree == 2 {
-                        let node_parent_id = self.get_node_parent_id(node_id).unwrap();
-                        let node_child_id = self.get_node_children_ids(node_id).next().unwrap();
+                        let node_parent_id = self
+                            .get_node_parent_id(node_id)
+                            .expect("invariant: branch excludes the root, so a parent exists");
+                        let node_child_id = self
+                            .get_node_children_ids(node_id)
+                            .next()
+                            .expect("invariant: degree is 2, so exactly one child exists");
                         self.remove_node(node_id);
                         self.set_child(node_parent_id, node_child_id);
                     }
@@ -459,11 +464,13 @@ mod simple_rooted_tree {
             if let Some(t) = taxa {
                 let arc = Arc::new(t);
                 self.get_node_mut(node_id)
-                    .unwrap()
+                    .expect("node_id is not a node of this tree")
                     .set_taxa_arc(Some(arc.clone()));
                 self.taxa_node_id_map.insert(TaxaPtr(arc), node_id);
             } else {
-                self.get_node_mut(node_id).unwrap().set_taxa(None);
+                self.get_node_mut(node_id)
+                    .expect("node_id is not a node of this tree")
+                    .set_taxa(None);
             }
         }
 
@@ -476,7 +483,10 @@ mod simple_rooted_tree {
         }
 
         fn get_node_taxa_cloned(&self, node_id: TreeNodeID<Self>) -> Option<TreeNodeMeta<Self>> {
-            self.get_node(node_id).unwrap().get_taxa().cloned()
+            self.get_node(node_id)
+                .expect("node_id is not a node of this tree")
+                .get_taxa()
+                .cloned()
         }
     }
 
@@ -505,8 +515,10 @@ mod simple_rooted_tree {
                 let rand_leaf_id = current_leaf_ids
                     .iter()
                     .choose(&mut rand::thread_rng())
-                    .unwrap();
-                let rand_leaf_parent_id = tree.get_node_parent_id(*rand_leaf_id).unwrap();
+                    .expect("invariant: current_leaf_ids is seeded with two leaves");
+                let rand_leaf_parent_id = tree
+                    .get_node_parent_id(*rand_leaf_id)
+                    .expect("invariant: every simulated leaf hangs off a parent");
                 let split_node = Node::new(tree.next_id());
                 let split_node_id = split_node.get_id();
                 tree.split_edge((rand_leaf_parent_id, *rand_leaf_id), split_node);
@@ -545,8 +557,10 @@ mod simple_rooted_tree {
                 let rand_leaf_id = *current_node_ids
                     .iter()
                     .choose(&mut rand::thread_rng())
-                    .unwrap();
-                let rand_leaf_parent_id = tree.get_node_parent_id(rand_leaf_id).unwrap();
+                    .expect("invariant: current_node_ids is seeded with two leaves");
+                let rand_leaf_parent_id = tree
+                    .get_node_parent_id(rand_leaf_id)
+                    .expect("invariant: every simulated node hangs off a parent");
                 let split_node = Node::new(tree.next_id());
                 let split_node_id = split_node.get_id();
                 current_node_ids.push(split_node_id);
@@ -741,7 +755,11 @@ mod simple_rooted_tree {
             let node_postord_iter = self.postord_nodes(new_tree_root_id);
             let mut node_map: Vec<Option<Self::Node>> = vec![None; self.nodes.len()];
 
-            node_map[new_tree_root_id] = Some(self.get_node(new_tree_root_id).unwrap().clone());
+            node_map[new_tree_root_id] = Some(
+                self.get_node(new_tree_root_id)
+                    .expect("new_tree_root_id is not a node of this tree")
+                    .clone(),
+            );
             let mut leaf_id_set = vec![false; self.nodes.len()];
             for id in leaf_ids {
                 leaf_id_set[*id] = true;
@@ -773,7 +791,7 @@ mod simple_rooted_tree {
                                 let child_node_id = node_children_ids[0];
                                 let child_node_edge_weight = self
                                     .get_node(child_node_id)
-                                    .unwrap()
+                                    .expect("invariant: id came from the source tree arena")
                                     .get_weight()
                                     .unwrap_or(W::zero());
 
@@ -781,23 +799,23 @@ mod simple_rooted_tree {
                                     node.remove_child(&child_node_id);
                                     let grandchildren_ids = node_map[child_node_id]
                                         .as_mut()
-                                        .unwrap()
+                                        .expect("invariant: node inserted during the post-order pass")
                                         .get_children()
                                         .to_vec();
                                     for grandchild_id in grandchildren_ids {
                                         node_map[grandchild_id]
                                             .as_mut()
-                                            .unwrap()
+                                            .expect("invariant: node inserted during the post-order pass")
                                             .set_parent(Some(node.get_id()));
                                         let new_edge_weight = node_map[grandchild_id]
                                             .as_ref()
-                                            .unwrap()
+                                            .expect("invariant: node inserted during the post-order pass")
                                             .get_weight()
                                             .unwrap_or(W::zero())
                                             + child_node_edge_weight;
                                         node_map[grandchild_id]
                                             .as_mut()
-                                            .unwrap()
+                                            .expect("invariant: node inserted during the post-order pass")
                                             .set_weight(Some(new_edge_weight));
                                         node.add_child(grandchild_id);
                                     }
@@ -818,30 +836,30 @@ mod simple_rooted_tree {
                                         // set grandchildren parent to node
                                         let chid_weight = self
                                             .get_node(chid)
-                                            .unwrap()
+                                            .expect("invariant: id came from the source tree arena")
                                             .get_weight()
                                             .unwrap_or(W::zero());
                                         node.remove_child(&chid);
                                         let node_grandchildren = node_map[chid]
                                             .as_mut()
-                                            .unwrap()
+                                            .expect("invariant: node inserted during the post-order pass")
                                             .get_children()
                                             .to_vec();
                                         for grandchild_id in node_grandchildren {
                                             let new_edge_weight = node_map[grandchild_id]
                                                 .as_ref()
-                                                .unwrap()
+                                                .expect("invariant: node inserted during the post-order pass")
                                                 .get_weight()
                                                 .unwrap_or(W::zero())
                                                 + chid_weight;
                                             node.add_child(grandchild_id);
                                             node_map[grandchild_id]
                                                 .as_mut()
-                                                .unwrap()
+                                                .expect("invariant: node inserted during the post-order pass")
                                                 .set_parent(Some(node.get_id()));
                                             node_map[grandchild_id]
                                                 .as_mut()
-                                                .unwrap()
+                                                .expect("invariant: node inserted during the post-order pass")
                                                 .set_weight(Some(new_edge_weight));
                                         }
                                     }
@@ -867,7 +885,7 @@ mod simple_rooted_tree {
             &self,
             leaf_ids: &[TreeNodeID<Self>],
             oracle: &LcaOracle<'_, Self>,
-        ) -> Result<Self, ()> {
+        ) -> Result<Self, TreeError> {
             let new_tree_root_id = oracle.get_lca_id(leaf_ids);
             let new_nodes = self.contracted_tree_nodes_from_root(new_tree_root_id, leaf_ids);
             let mut new_tree = SimpleRootedTree {
@@ -886,7 +904,7 @@ mod simple_rooted_tree {
             &self,
             leaf_ids: &[TreeNodeID<Self>],
             node_iter: impl Iterator<Item = TreeNodeID<Self>>,
-        ) -> Result<Self, ()> {
+        ) -> Result<Self, TreeError> {
             let new_tree_root_id = self.get_lca_id(leaf_ids);
             let new_nodes =
                 self.contracted_tree_nodes_from_iter(new_tree_root_id, leaf_ids, node_iter);
@@ -944,7 +962,7 @@ mod simple_rooted_tree {
                         let y_cluster_size = cluster_sizes[*y];
                         x_cluster_size.cmp(&y_cluster_size)
                     })
-                    .unwrap();
+                    .expect("invariant: the loop only descends into internal nodes");
                 if cluster_sizes[median_node_id] <= (leaf_ids.len() / 2) {
                     break;
                 }
@@ -957,7 +975,7 @@ mod simple_rooted_tree {
             taxa_set: impl Iterator<Item = TreeNodeID<Self>>,
         ) -> &Self::Node {
             self.get_node(self.get_median_node_id_for_leaves(taxa_set))
-                .unwrap()
+                .expect("invariant: id came from get_median_node_id_for_leaves")
         }
 
         /// Returns an immutable reference to median node of all leaves in a tree.
@@ -1002,7 +1020,9 @@ mod simple_rooted_tree {
             let mut out = String::new();
             let mut stack: Vec<(TreeNodeID<Self>, usize)> = vec![(node_id, 0)];
             while let Some(&(nid, child_idx)) = stack.last() {
-                let node = self.get_node(nid).unwrap();
+                let node = self
+                    .get_node(nid)
+                    .expect("invariant: id came from the traversal stack");
                 let children = node.get_children();
                 // Parenthesise only nodes with more than one child, matching the
                 // original serialiser (a unary node is flattened).
@@ -1014,7 +1034,10 @@ mod simple_rooted_tree {
                         out.push(',');
                     }
                     let child = children[child_idx];
-                    stack.last_mut().unwrap().1 += 1;
+                    stack
+                        .last_mut()
+                        .expect("invariant: guarded by while let Some(..) = stack.last()")
+                        .1 += 1;
                     stack.push((child, 0));
                 } else {
                     // All children emitted: close the subtree, then this node's
@@ -1061,7 +1084,7 @@ mod simple_rooted_tree {
             &mut self,
             mut tree: Self,
             edge: (TreeNodeID<Self>, TreeNodeID<Self>),
-        ) -> Result<(), ()> {
+        ) -> Result<(), TreeError> {
             let new_node = self.next_node();
             let new_node_id = new_node.get_id();
             for node in tree.get_nodes_mut() {
@@ -1072,20 +1095,28 @@ mod simple_rooted_tree {
             self.set_child(new_node_id, tree.get_root_id());
             Ok(())
         }
-        fn prune(&mut self, node_id: TreeNodeID<Self>) -> Result<Self, ()> {
+        fn prune(&mut self, node_id: TreeNodeID<Self>) -> Result<Self, TreeError> {
+            if !self.contains_node(node_id) {
+                return Err(TreeError::UnknownNode(node_id));
+            }
             let mut pruned_tree = SimpleRootedTree::new(node_id);
-            let p_id = self.get_node_parent_id(node_id).unwrap();
-            self.get_node_mut(p_id).unwrap().remove_child(&node_id);
+            // Pruning detaches the subtree from its parent, so the root has
+            // nothing to detach from.
+            let p_id = self
+                .get_node_parent_id(node_id)
+                .ok_or(TreeError::NoParent(node_id))?;
+            self.get_node_mut(p_id)
+                .expect("invariant: parent id came from the arena")
+                .remove_child(&node_id);
+            let children = self
+                .get_node(node_id)
+                .expect("invariant: existence checked above")
+                .get_children()
+                .to_vec();
             pruned_tree
                 .get_node_mut(pruned_tree.get_root_id())
-                .unwrap()
-                .add_children(
-                    self.get_node(node_id)
-                        .unwrap()
-                        .get_children()
-                        .iter()
-                        .copied(),
-                );
+                .expect("invariant: SimpleRootedTree::new seeds its root")
+                .add_children(children.into_iter());
             let dfs = self.dfs(node_id).collect_vec();
             for node in dfs {
                 // self.nodes.remove(node.get_id());
@@ -1101,11 +1132,18 @@ mod simple_rooted_tree {
         W: EdgeWeight,
         Z: NodeWeight,
     {
-        fn nni(&mut self, node_id: TreeNodeID<Self>, left_ch: bool) -> Result<(), ()> {
+        fn nni(&mut self, node_id: TreeNodeID<Self>, left_ch: bool) -> Result<(), TreeError> {
+            if !self.contains_node(node_id) {
+                return Err(TreeError::UnknownNode(node_id));
+            }
             if self.is_leaf(node_id) || node_id == self.get_root_id() {
-                panic!("NNI cannot be performed at a leaf or root!")
+                // An NNI swaps a node's child with its sibling; a leaf has no
+                // child to swap and the root has no sibling.
+                Err(TreeError::NoParent(node_id))
             } else {
-                let node_parent_id = self.get_node_parent_id(node_id).unwrap();
+                let node_parent_id = self
+                    .get_node_parent_id(node_id)
+                    .expect("invariant: branch excludes the root, so a parent exists");
 
                 let node_ch_ids = self.get_node_children_ids(node_id).collect_vec();
                 let node_ch1 = node_ch_ids[left_ch as usize];
@@ -1132,7 +1170,7 @@ mod simple_rooted_tree {
         W: EdgeWeight,
         Z: NodeWeight,
     {
-        fn balance_subtree(&mut self) -> Result<(), ()> {
+        fn balance_subtree(&mut self) -> Result<(), TreeError> {
             assert!(
                 self.get_cluster(self.get_root_id()).collect_vec().len() == 4,
                 "Quartets have 4 leaves!"
@@ -1142,13 +1180,19 @@ mod simple_rooted_tree {
             let (child1, child2) = (root_children[0].get_id(), root_children[1].get_id());
             let next_id = self.next_id();
             let split_id = self.next_id() + 1;
-            match dbg!((
-                (self.get_node(child1).unwrap().is_leaf()),
-                (self.get_node(child2).unwrap().is_leaf())
-            )) {
+            match (
+                self.get_node(child1)
+                    .expect("invariant: child id came from the root's children")
+                    .is_leaf(),
+                self.get_node(child2)
+                    .expect("invariant: child id came from the root's children")
+                    .is_leaf(),
+            ) {
                 (false, false) => {}
                 (true, false) => {
-                    let mut leaf_node = self.remove_node(child1).unwrap();
+                    let mut leaf_node = self
+                        .remove_node(child1)
+                        .expect("invariant: child id came from the root's children");
                     leaf_node.set_id(next_id);
                     let other_leaf_id = &self
                         .get_node_children(child2)
@@ -1156,10 +1200,12 @@ mod simple_rooted_tree {
                         .collect_vec()[0]
                         .get_id();
                     self.split_edge((child2, *other_leaf_id), Node::new(split_id));
-                    self.add_child(dbg!(split_id), leaf_node);
+                    self.add_child(split_id, leaf_node);
                 }
                 (false, true) => {
-                    let mut leaf_node = self.remove_node(child2).unwrap();
+                    let mut leaf_node = self
+                        .remove_node(child2)
+                        .expect("invariant: child id came from the root's children");
                     leaf_node.set_id(next_id);
                     let other_leaf_id = &self
                         .get_node_children(child1)
@@ -1299,14 +1345,24 @@ mod simple_rooted_tree {
                 let mut internal_node = Node::new(internal_id);
 
                 // Wire the new internal node in place of the sibling
-                match nodes[sibling_id].as_ref().unwrap().get_parent() {
+                match nodes[sibling_id]
+                    .as_ref()
+                    .expect("invariant: sibling slot was populated above")
+                    .get_parent()
+                {
                     None => {
                         // Sibling is the current root; internal becomes the new root
                         root_id = internal_id;
                     }
                     Some(p_id) => {
-                        nodes[p_id].as_mut().unwrap().remove_child(&sibling_id);
-                        nodes[p_id].as_mut().unwrap().add_child(internal_id);
+                        nodes[p_id]
+                            .as_mut()
+                            .expect("invariant: parent slot was populated above")
+                            .remove_child(&sibling_id);
+                        nodes[p_id]
+                            .as_mut()
+                            .expect("invariant: parent slot was populated above")
+                            .add_child(internal_id);
                         internal_node.set_parent(Some(p_id));
                     }
                 }
@@ -1316,9 +1372,12 @@ mod simple_rooted_tree {
                 internal_node.add_child(i);
                 nodes[sibling_id]
                     .as_mut()
-                    .unwrap()
+                    .expect("invariant: sibling slot was populated above")
                     .set_parent(Some(internal_id));
-                nodes[i].as_mut().unwrap().set_parent(Some(internal_id));
+                nodes[i]
+                    .as_mut()
+                    .expect("invariant: leaf slot was populated above")
+                    .set_parent(Some(internal_id));
 
                 nodes[internal_id] = Some(internal_node);
             }

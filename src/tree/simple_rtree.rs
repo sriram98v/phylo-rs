@@ -31,7 +31,10 @@ pub trait RootedTree: Clone + Sync {
     /// lazy `Iterator` rather than materialising a `Vec` to promise
     /// `ExactSizeIterator`. Call `.count()` if you need the length.
     fn get_nodes(&self) -> impl Iterator<Item = &Self::Node> {
-        self.get_node_ids().map(|id| self.get_node(id).unwrap())
+        self.get_node_ids().map(|id| {
+            self.get_node(id)
+                .expect("invariant: id came from get_node_ids")
+        })
     }
 
     /// Returns iterator with mutable references to nodes
@@ -47,14 +50,18 @@ pub trait RootedTree: Clone + Sync {
     fn set_node(&mut self, node: Self::Node);
 
     /// Adds node as child to an existing node in tree.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `parent_id` is not a node of this tree.
     fn add_child(&mut self, parent_id: TreeNodeID<Self>, child: Self::Node) {
         let new_child_id = child.get_id();
         self.set_node(child);
         self.get_node_mut(parent_id)
-            .unwrap()
+            .expect("parent_id is not a node of this tree")
             .add_child(new_child_id);
         self.get_node_mut(new_child_id)
-            .unwrap()
+            .expect("invariant: child was just inserted by set_node")
             .set_parent(Some(parent_id));
     }
 
@@ -79,17 +86,21 @@ pub trait RootedTree: Clone + Sync {
                 let new_root = self.get_root().get_children()[0];
                 self.set_root(new_root);
                 self.get_node_mut(self.get_root_id())
-                    .unwrap()
+                    .expect("invariant: new root was read from the old root's children")
                     .set_parent(None);
                 self.remove_node(node_id);
             }
             // remove nodes with only one child
             else if !node.is_leaf() && node.get_parent().is_some() && node.degree() < 3 {
-                let parent_id = self.get_node_parent_id(node_id);
+                let parent_id = self
+                    .get_node_parent_id(node_id)
+                    .expect("invariant: branch is guarded by get_parent().is_some()");
                 let child_id = node.get_children()[0];
-                self.get_node_mut(child_id).unwrap().set_parent(parent_id);
-                self.get_node_mut(parent_id.unwrap())
-                    .unwrap()
+                self.get_node_mut(child_id)
+                    .expect("invariant: child id came from the arena")
+                    .set_parent(Some(parent_id));
+                self.get_node_mut(parent_id)
+                    .expect("invariant: parent id came from the arena")
                     .add_child(child_id);
                 self.remove_node(node.get_id());
             }
@@ -100,7 +111,9 @@ pub trait RootedTree: Clone + Sync {
                 // to do it -- happened once per child, so cleaning a tree cost
                 // a quadratic number of allocations.
                 if !self.contains_node(*chid) {
-                    self.get_node_mut(node_id).unwrap().remove_child(chid);
+                    self.get_node_mut(node_id)
+                        .expect("invariant: node_id came from the arena")
+                        .remove_child(chid);
                 }
             }
         }
@@ -112,9 +125,11 @@ pub trait RootedTree: Clone + Sync {
     /// Deletes an edge from the tree without deleting an nodes
     fn delete_edge(&mut self, parent_id: TreeNodeID<Self>, child_id: TreeNodeID<Self>) {
         self.get_node_mut(parent_id)
-            .unwrap()
+            .expect("parent_id is not a node of this tree")
             .remove_child(&child_id);
-        self.get_node_mut(child_id).unwrap().set_parent(None);
+        self.get_node_mut(child_id)
+            .expect("child_id is not a node of this tree")
+            .set_parent(None);
     }
 
     /// Inserts nodes into tree from iterator. Note: this will overwrite any existing node with a NodeID that already exists in tree.
@@ -130,7 +145,9 @@ pub trait RootedTree: Clone + Sync {
         let c_id = edge.1;
         let n_id = node.get_id();
         self.set_node(node);
-        self.get_node_mut(p_id).unwrap().remove_child(&c_id);
+        self.get_node_mut(p_id)
+            .expect("edge.0 is not a node of this tree")
+            .remove_child(&c_id);
         self.set_child(p_id, n_id);
         self.set_child(n_id, c_id);
     }
@@ -142,7 +159,9 @@ pub trait RootedTree: Clone + Sync {
         split_node: Self::Node,
         sibling_node: Self::Node,
     ) {
-        let node_parent_id = self.get_node_parent_id(node_id).unwrap();
+        let node_parent_id = self
+            .get_node_parent_id(node_id)
+            .expect("node_id has no parent, so it has no sibling position");
         let split_node_id = split_node.get_id();
         self.split_edge((node_parent_id, node_id), split_node);
         self.add_child(split_node_id, sibling_node);
@@ -160,26 +179,30 @@ pub trait RootedTree: Clone + Sync {
 
     /// Returns an immutable reference to root node
     fn get_root(&self) -> &Self::Node {
-        self.get_node(self.get_root_id()).unwrap()
+        self.get_node(self.get_root_id())
+            .expect("invariant: the root id always names a node")
     }
 
     /// Returns a mutable reference to the root node
     fn get_root_mut(&mut self) -> &mut Self::Node {
-        self.get_node_mut(self.get_root_id()).unwrap()
+        self.get_node_mut(self.get_root_id())
+            .expect("invariant: the root id always names a node")
     }
 
     /// creates an edge from node with parent ID to child ID. The child node must already exist in tree.
     fn set_child(&mut self, parent_id: TreeNodeID<Self>, child_id: TreeNodeID<Self>) {
-        self.get_node_mut(parent_id).unwrap().add_child(child_id);
+        self.get_node_mut(parent_id)
+            .expect("parent_id is not a node of this tree")
+            .add_child(child_id);
         self.get_node_mut(child_id)
-            .unwrap()
+            .expect("child_id is not a node of this tree")
             .set_parent(Some(parent_id));
     }
 
     /// Removes edge from prant to child without deleting either node.
     fn remove_child(&mut self, parent_id: TreeNodeID<Self>, child_id: TreeNodeID<Self>) {
         self.get_node_mut(parent_id)
-            .unwrap()
+            .expect("parent_id is not a node of this tree")
             .remove_child(&child_id);
     }
 
@@ -191,7 +214,7 @@ pub trait RootedTree: Clone + Sync {
     ) {
         for child_id in child_ids {
             self.get_node_mut(parent_id)
-                .unwrap()
+                .expect("parent_id is not a node of this tree")
                 .remove_child(&child_id);
         }
     }
@@ -206,8 +229,15 @@ pub trait RootedTree: Clone + Sync {
     }
 
     /// Returns parent ID of a node in tree
+    ///
+    /// # Panics
+    ///
+    /// Panics if `node_id` is not a node of this tree. `None` means the node
+    /// exists and is the root.
     fn get_node_parent_id(&self, node_id: TreeNodeID<Self>) -> Option<TreeNodeID<Self>> {
-        self.get_node(node_id).unwrap().get_parent()
+        self.get_node(node_id)
+            .expect("node_id is not a node of this tree")
+            .get_parent()
     }
 
     /// Returns immutable reference to parent for a node
@@ -228,10 +258,13 @@ pub trait RootedTree: Clone + Sync {
         // `Map` is already `ExactSizeIterator` when its source is, so the
         // collect this used to do bought nothing but an allocation per call.
         self.get_node(node_id)
-            .unwrap()
+            .expect("node_id is not a node of this tree")
             .get_children()
             .iter()
-            .map(|x| self.get_node(*x).unwrap())
+            .map(|x| {
+                self.get_node(*x)
+                    .expect("invariant: child id came from the arena")
+            })
     }
 
     /// Returns an iterator of node children ids
@@ -243,7 +276,7 @@ pub trait RootedTree: Clone + Sync {
         // this once per node, so the `to_vec` here was an allocation per node
         // per walk.
         self.get_node(node_id)
-            .unwrap()
+            .expect("node_id is not a node of this tree")
             .get_children()
             .iter()
             .copied()
@@ -251,7 +284,9 @@ pub trait RootedTree: Clone + Sync {
 
     /// Returns degree of a node
     fn node_degree(&self, node_id: TreeNodeID<Self>) -> usize {
-        self.get_node(node_id).unwrap().degree()
+        self.get_node(node_id)
+            .expect("node_id is not a node of this tree")
+            .degree()
     }
 
     /// Returns depth of node as number of edges in the path between node and root.
@@ -281,7 +316,9 @@ pub trait RootedTree: Clone + Sync {
 
     /// Returns true if node with node_id is a leaf node
     fn is_leaf(&self, node_id: TreeNodeID<Self>) -> bool {
-        self.get_node(node_id).unwrap().is_leaf()
+        self.get_node(node_id)
+            .expect("node_id is not a node of this tree")
+            .is_leaf()
     }
 
     /// Returns total number of nodes in tree
@@ -357,12 +394,16 @@ where
 
     /// Sets the emta annotation of a node
     fn set_node_taxa(&mut self, node_id: TreeNodeID<Self>, taxa: Option<TreeNodeMeta<Self>>) {
-        self.get_node_mut(node_id).unwrap().set_taxa(taxa)
+        self.get_node_mut(node_id)
+            .expect("node_id is not a node of this tree")
+            .set_taxa(taxa)
     }
 
     /// Returns an immutable reference to the meta annotation of a node, and None is there is no meta annotation
     fn get_node_taxa(&self, node_id: TreeNodeID<Self>) -> Option<&TreeNodeMeta<Self>> {
-        self.get_node(node_id).unwrap().get_taxa()
+        self.get_node(node_id)
+            .expect("node_id is not a node of this tree")
+            .get_taxa()
     }
 
     /// Returns a deep copy of the meta annotation of a node
@@ -395,13 +436,20 @@ where
         edge: (TreeNodeID<Self>, TreeNodeID<Self>),
         edge_weight: Option<TreeNodeWeight<Self>>,
     ) {
-        self.get_node_mut(edge.1).unwrap().set_weight(edge_weight);
+        self.get_node_mut(edge.1)
+            .expect("edge.1 is not a node of this tree")
+            .set_weight(edge_weight);
     }
 
     /// Returns true if edge weight not None
     fn is_weighted(&self) -> bool {
         for node_id in self.get_node_ids() {
-            if self.get_node(node_id).unwrap().get_weight().is_none() {
+            if self
+                .get_node(node_id)
+                .expect("invariant: node_id came from get_node_ids")
+                .get_weight()
+                .is_none()
+            {
                 return false;
             }
         }
@@ -414,6 +462,8 @@ where
         _parent_id: TreeNodeID<Self>,
         child_id: TreeNodeID<Self>,
     ) -> Option<TreeNodeWeight<Self>> {
-        self.get_node(child_id).unwrap().get_weight()
+        self.get_node(child_id)
+            .expect("child_id is not a node of this tree")
+            .get_weight()
     }
 }

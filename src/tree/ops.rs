@@ -6,6 +6,7 @@ use std::{
 use crate::node::simple_rnode::{NodeTaxa, RootedMetaNode};
 use crate::prelude::{Clusters, EulerWalk, PreOrder, RootedMetaTree, RootedTree, DFS};
 use crate::{
+    error::TreeError,
     iter::lca::LcaOracle,
     iter::node_iter::Ancestors,
     node::simple_rnode::RootedTreeNode,
@@ -20,17 +21,21 @@ use std::collections::{HashMap, HashSet};
 /// A trait describing subtree-prune-regraft operations
 pub trait SPR: RootedTree + DFS + Sized {
     /// Attaches input tree to self by spliting an edge
-    fn graft(&mut self, tree: Self, edge: (TreeNodeID<Self>, TreeNodeID<Self>)) -> Result<(), ()>;
+    fn graft(
+        &mut self,
+        tree: Self,
+        edge: (TreeNodeID<Self>, TreeNodeID<Self>),
+    ) -> Result<(), TreeError>;
 
     /// Returns subtree starting at given node, while corresponding nodes from self.
-    fn prune(&mut self, node_id: TreeNodeID<Self>) -> Result<Self, ()>;
+    fn prune(&mut self, node_id: TreeNodeID<Self>) -> Result<Self, TreeError>;
 
     /// SPR function
     fn spr(
         &mut self,
         edge1: (TreeNodeID<Self>, TreeNodeID<Self>),
         edge2: (TreeNodeID<Self>, TreeNodeID<Self>),
-    ) -> Result<(), ()> {
+    ) -> Result<(), TreeError> {
         let pruned_tree = SPR::prune(self, edge1.1)?;
         SPR::graft(self, pruned_tree, edge2)
     }
@@ -42,7 +47,7 @@ where
     Self: RootedTree + Sized,
 {
     /// Performs an NNI operation
-    fn nni(&mut self, node_id: TreeNodeID<Self>, left_ch: bool) -> Result<(), ()>;
+    fn nni(&mut self, node_id: TreeNodeID<Self>, left_ch: bool) -> Result<(), TreeError>;
 }
 
 /// A trait describing rerooting a tree
@@ -51,9 +56,12 @@ where
     Self: RootedTree + Sized,
 {
     /// Reroots tree at node. **Note: this changes the degree of a node**
-    fn reroot_at_node(&mut self, node_id: TreeNodeID<Self>) -> Result<(), ()>;
+    fn reroot_at_node(&mut self, node_id: TreeNodeID<Self>) -> Result<(), TreeError>;
     /// Reroots tree at a split node.
-    fn reroot_at_edge(&mut self, edge: (TreeNodeID<Self>, TreeNodeID<Self>)) -> Result<(), ()>;
+    fn reroot_at_edge(
+        &mut self,
+        edge: (TreeNodeID<Self>, TreeNodeID<Self>),
+    ) -> Result<(), TreeError>;
 }
 
 /// A trait describing balancing a binary tree
@@ -62,7 +70,7 @@ where
     TreeNodeID<Self>: Display + Debug + Hash + Clone + Ord,
 {
     /// Balances a binary tree
-    fn balance_subtree(&mut self) -> Result<(), ()>;
+    fn balance_subtree(&mut self) -> Result<(), TreeError>;
 }
 
 /// A trait describing subtree queries of a tree
@@ -77,7 +85,7 @@ where
             Item = TreeNodeID<Self>,
             IntoIter = impl ExactSizeIterator<Item = TreeNodeID<Self>>,
         >,
-    ) -> Result<Self, ()> {
+    ) -> Result<Self, TreeError> {
         let mut subtree = Self::new();
         // As in `subtree`: drop the `Self::new()` placeholder if the induced
         // node set never overwrites it (happens when `self`'s root id is not
@@ -99,7 +107,7 @@ where
     }
 
     /// Returns subtree starting at provided node.
-    fn subtree(&self, node_id: TreeNodeID<Self>) -> Result<Self, ()> {
+    fn subtree(&self, node_id: TreeNodeID<Self>) -> Result<Self, TreeError> {
         let mut subtree = Self::new();
         // `Self::new()` seeds a placeholder root node. Unless the extracted
         // subtree overwrites that slot, it would linger as an unreachable node
@@ -109,7 +117,10 @@ where
         let nodes: Vec<Self::Node> = self.dfs(node_id).cloned().collect();
         let placeholder_kept = nodes.iter().any(|node| node.get_id() == placeholder);
         subtree.set_nodes(nodes.into_iter());
-        subtree.get_node_mut(node_id).unwrap().set_parent(None);
+        subtree
+            .get_node_mut(node_id)
+            .ok_or_else(|| TreeError::UnknownNode(node_id.into()))?
+            .set_parent(None);
         if !placeholder_kept {
             subtree.delete_node(placeholder);
         }
@@ -128,13 +139,19 @@ pub trait ContractTree: EulerWalk + DFS {
     ) -> impl Iterator<Item = Self::Node> {
         let mut node_map: HashMap<TreeNodeID<Self>, Self::Node> = HashMap::from_iter(vec![(
             new_tree_root_id,
-            self.get_node(new_tree_root_id).unwrap().clone(),
+            self.get_node(new_tree_root_id)
+                .expect("new_tree_root_id is not a node of this tree")
+                .clone(),
         )]);
         let mut remove_list: HashSet<TreeNodeID<Self>> = HashSet::from_iter(vec![]);
 
         let leaf_ids: HashSet<&TreeNodeID<Self>> = leaf_ids.iter().collect();
         node_iter
-            .map(|x| self.get_node(x).cloned().unwrap())
+            .map(|x| {
+                self.get_node(x)
+                    .cloned()
+                    .expect("node_iter yielded an id that is not in this tree")
+            })
             .for_each(|mut node| {
                 match node.is_leaf() {
                     true => {
@@ -163,13 +180,13 @@ pub trait ContractTree: EulerWalk + DFS {
                                     node.remove_child(&child_node_id);
                                     let grandchildren_ids = node_map
                                         .get(&child_node_id)
-                                        .unwrap()
+                                        .expect("invariant: node inserted during the post-order pass")
                                         .get_children()
                                         .to_vec();
                                     for grandchild_id in grandchildren_ids {
                                         node_map
                                             .get_mut(&grandchild_id)
-                                            .unwrap()
+                                            .expect("invariant: node inserted during the post-order pass")
                                             .set_parent(Some(node.get_id()));
                                         node.add_child(grandchild_id);
                                     }
@@ -189,12 +206,12 @@ pub trait ContractTree: EulerWalk + DFS {
                                         // set grandchildren parent to node
                                         node.remove_child(&chid);
                                         let node_grandchildren =
-                                            node_map.get(&chid).unwrap().get_children().to_vec();
+                                            node_map.get(&chid).expect("invariant: node inserted during the post-order pass").get_children().to_vec();
                                         for grandchild in node_grandchildren {
                                             node.add_child(grandchild);
                                             node_map
                                                 .get_mut(&grandchild)
-                                                .unwrap()
+                                                .expect("invariant: node inserted during the post-order pass")
                                                 .set_parent(Some(node.get_id()))
                                         }
                                     }
@@ -217,9 +234,9 @@ pub trait ContractTree: EulerWalk + DFS {
     /// Returns a deep copy of the nodes in the contracted tree.
     ///
     /// Resolves the contracted tree's root by [`EulerWalk::get_lca_id`], which
-    /// builds a throwaway [`LcaOracle`]. Callers that already know the root -- or
-    /// that contract repeatedly against one tree -- should use
-    /// [`Self::contracted_tree_nodes_from_root`] instead.
+    /// builds a throwaway [`LcaOracle`]. Callers
+    /// that already know the root — or that contract repeatedly against one
+    /// tree — should use [`Self::contracted_tree_nodes_from_root`] instead.
     fn contracted_tree_nodes(
         &self,
         leaf_ids: &[TreeNodeID<Self>],
@@ -230,7 +247,7 @@ pub trait ContractTree: EulerWalk + DFS {
     /// Returns a deep copy of the nodes in the contracted tree, given its root.
     ///
     /// `new_tree_root_id` must be the LCA of `leaf_ids`. Taking it as a
-    /// parameter -- as [`Self::contracted_tree_nodes_from_iter`] already does --
+    /// parameter — as [`Self::contracted_tree_nodes_from_iter`] already does —
     /// is what lets a caller resolve it once and reuse it, rather than paying
     /// for an Euler tour and RMQ build per contraction.
     fn contracted_tree_nodes_from_root(
@@ -241,7 +258,9 @@ pub trait ContractTree: EulerWalk + DFS {
         let node_postord_iter = self.postord_nodes(new_tree_root_id);
         let mut node_map: HashMap<TreeNodeID<Self>, Self::Node> = HashMap::from_iter(vec![(
             new_tree_root_id,
-            self.get_node(new_tree_root_id).unwrap().clone(),
+            self.get_node(new_tree_root_id)
+                .expect("new_tree_root_id is not a node of this tree")
+                .clone(),
         )]);
 
         let leaf_ids: HashSet<&TreeNodeID<Self>> = leaf_ids.iter().collect();
@@ -275,13 +294,13 @@ pub trait ContractTree: EulerWalk + DFS {
                                 node.remove_child(&child_node_id);
                                 let grandchildren_ids = node_map
                                     .get(&child_node_id)
-                                    .unwrap()
+                                    .expect("invariant: node inserted during the post-order pass")
                                     .get_children()
                                     .to_vec();
                                 for grandchild_id in grandchildren_ids {
                                     node_map
                                         .get_mut(&grandchild_id)
-                                        .unwrap()
+                                        .expect("invariant: node inserted during the post-order pass")
                                         .set_parent(Some(node.get_id()));
                                     node.add_child(grandchild_id);
                                 }
@@ -301,12 +320,12 @@ pub trait ContractTree: EulerWalk + DFS {
                                     // set grandchildren parent to node
                                     node.remove_child(&chid);
                                     let node_grandchildren =
-                                        node_map.get(&chid).unwrap().get_children().to_vec();
+                                        node_map.get(&chid).expect("invariant: node inserted during the post-order pass").get_children().to_vec();
                                     for grandchild in node_grandchildren {
                                         node.add_child(grandchild);
                                         node_map
                                             .get_mut(&grandchild)
-                                            .unwrap()
+                                            .expect("invariant: node inserted during the post-order pass")
                                             .set_parent(Some(node.get_id()))
                                     }
                                 }
@@ -328,12 +347,12 @@ pub trait ContractTree: EulerWalk + DFS {
 
     /// Returns a contracted tree from slice containing NodeID's
     ///
-    /// Builds a throwaway [`LcaOracle`] to find the contracted tree's root -- an
-    /// Euler tour plus RMQ, linear in the size of the original tree. Callers
-    /// contracting the same tree more than once should build one oracle with
-    /// [`EulerWalk::lca`] and hand it to [`Self::contract_tree_with_oracle`],
-    /// which is the same work amortised.
-    fn contract_tree(&self, leaf_ids: &[TreeNodeID<Self>]) -> Result<Self, ()> {
+    /// Builds a throwaway [`LcaOracle`] to find the
+    /// contracted tree's root — an Euler tour plus RMQ, linear in the size of
+    /// the original tree. Callers contracting the same tree more than once
+    /// should build one oracle with [`EulerWalk::lca`] and hand it to
+    /// [`Self::contract_tree_with_oracle`], which is the same work amortised.
+    fn contract_tree(&self, leaf_ids: &[TreeNodeID<Self>]) -> Result<Self, TreeError> {
         self.contract_tree_with_oracle(leaf_ids, &self.lca())
     }
 
@@ -344,14 +363,14 @@ pub trait ContractTree: EulerWalk + DFS {
         &self,
         leaf_ids: &[TreeNodeID<Self>],
         oracle: &LcaOracle<'_, Self>,
-    ) -> Result<Self, ()>;
+    ) -> Result<Self, TreeError>;
 
     /// Returns a contracted tree from an iterator containing NodeID's
     fn contract_tree_from_iter(
         &self,
         leaf_ids: &[TreeNodeID<Self>],
         node_iter: impl Iterator<Item = TreeNodeID<Self>>,
-    ) -> Result<Self, ()>;
+    ) -> Result<Self, TreeError>;
 }
 
 /// A struct representing an Ordered Leaf Array tree
@@ -380,7 +399,9 @@ where
 {
     let mut current = descendant;
     loop {
-        let parent = tree.get_node_parent_id(current).unwrap();
+        let parent = tree
+            .get_node_parent_id(current)
+            .expect("invariant: walk stops at `ancestor`, which is above the root path");
         if parent == ancestor {
             return current;
         }
@@ -436,7 +457,7 @@ where
             let p_id = *lcas
                 .iter()
                 .max_by_key(|&&lca| oracle.get_node_depth(lca))
-                .unwrap();
+                .expect("invariant: i >= 1, so lcas holds at least one entry");
 
             // Sibling's leaves in T^{i-1}: those l_j (j < i) whose LCA with l_i is exactly p_id,
             // meaning they live on the opposite side of p_id from l_i
@@ -461,7 +482,10 @@ where
                         *e = j;
                     }
                 }
-                let mu_max = *child_min.values().max().unwrap();
+                let mu_max = *child_min
+                    .values()
+                    .max()
+                    .expect("invariant: sibling_indices is non-empty in this branch");
                 -(mu_max as i64)
             };
 
@@ -471,7 +495,10 @@ where
         // Step 3: collect taxa labels in leaf ordering σ
         let taxa: Vec<TreeNodeMeta<Self>> = leaf_ids
             .iter()
-            .map(|&id| self.get_node_taxa_cloned(id).unwrap())
+            .map(|&id| {
+                self.get_node_taxa_cloned(id)
+                    .expect("invariant: id came from the leaf set, which is labelled")
+            })
             .collect();
 
         OLATree {
