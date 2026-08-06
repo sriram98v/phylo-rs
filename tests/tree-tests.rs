@@ -480,8 +480,6 @@ fn contract_tree_keeps_exactly_the_requested_leaves() {
 
 #[test]
 fn contract_tree_roots_at_the_lca_of_the_subset() {
-    // A subset drawn from one side of the root must root at that side, not at
-    // the original root.
     let tree = weighted_fixture();
     let subset = taxa_ids(&tree, &["0", "2"]);
 
@@ -517,9 +515,6 @@ fn contract_tree_suppresses_unifurcations() {
 
 #[test]
 fn contract_tree_sums_edge_weights_across_suppressed_nodes() {
-    // Leaf 0 sits under a unifurcation of weight 0.58 once leaf 3 is dropped,
-    // so its edge becomes 0.93 + 0.58 = 1.51. Leaf 4's parent carries no
-    // weight, so 1.04 is unchanged.
     let tree = weighted_fixture();
     let subset = taxa_ids(&tree, &["1", "0", "4"]);
 
@@ -548,8 +543,6 @@ fn contracted_tree_nodes_covers_the_contracted_tree() {
 
 #[test]
 fn contract_tree_with_oracle_matches_contract_tree() {
-    // One oracle, many contractions -- the amortisation `contract_tree` cannot
-    // do for itself. Every result must match the standalone call exactly.
     let tree = PhyloTree::yule(50);
     let leaves = tree.get_leaf_ids().collect_vec();
     let oracle = tree.lca();

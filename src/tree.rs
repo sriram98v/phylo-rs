@@ -740,8 +740,7 @@ mod simple_rooted_tree {
         ) -> impl Iterator<Item = Self::Node> {
             let node_postord_iter = self.postord_nodes(new_tree_root_id);
             let mut node_map: Vec<Option<Self::Node>> = vec![None; self.nodes.len()];
-            // The root node by id: `get_lca(leaf_ids)` would resolve the same
-            // node by building a second Euler tour and RMQ.
+
             node_map[new_tree_root_id] = Some(self.get_node(new_tree_root_id).unwrap().clone());
             let mut leaf_id_set = vec![false; self.nodes.len()];
             for id in leaf_ids {

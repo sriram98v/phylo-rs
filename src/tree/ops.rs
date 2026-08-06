@@ -131,8 +131,7 @@ pub trait ContractTree: EulerWalk + DFS {
             self.get_node(new_tree_root_id).unwrap().clone(),
         )]);
         let mut remove_list: HashSet<TreeNodeID<Self>> = HashSet::from_iter(vec![]);
-        // Set membership rather than a slice scan: `contains` on the `leaf_ids`
-        // slice is linear, which made the leaf test quadratic in the subset size.
+
         let leaf_ids: HashSet<&TreeNodeID<Self>> = leaf_ids.iter().collect();
         node_iter
             .map(|x| self.get_node(x).cloned().unwrap())
@@ -244,8 +243,7 @@ pub trait ContractTree: EulerWalk + DFS {
             new_tree_root_id,
             self.get_node(new_tree_root_id).unwrap().clone(),
         )]);
-        // Set membership: a slice scan per leaf makes the contraction quadratic
-        // in the subset size.
+
         let leaf_ids: HashSet<&TreeNodeID<Self>> = leaf_ids.iter().collect();
         let mut remove_list: HashSet<TreeNodeID<Self>> = HashSet::default();
         node_postord_iter.for_each(|orig_node| {

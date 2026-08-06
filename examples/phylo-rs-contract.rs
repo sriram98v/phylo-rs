@@ -18,8 +18,6 @@ fn main() -> Result<(), Box<dyn Error>> {
         .into_iter()
         .choose_multiple(&mut rng, ((ntaxa as f32) * 0.05) as usize);
 
-    // Built outside the timed region, matching what this benchmark did before
-    // 5.0 with `tree.precompute_constant_time_lca()`.
     let oracle = tree.lca();
 
     let now = Instant::now();
