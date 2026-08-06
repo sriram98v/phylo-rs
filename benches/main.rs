@@ -149,7 +149,7 @@ fn benchmark_postord_ids(bencher: divan::Bencher, taxa_size: usize) {
     bencher
         .with_inputs(|| PhyloTree::yule(taxa_size))
         .bench_refs(|t1| {
-            let _ = t1.postord_ids(t1.get_root_id()).collect_vec();
+            let _ = t1.postord_ids(t1.get_root_id()).unwrap().collect_vec();
         });
 }
 
@@ -199,6 +199,7 @@ fn new_contract_nodes(bencher: divan::Bencher, taxa_size: usize) {
         })
         .bench_refs(|(t1, taxa_subset)| {
             t1.contracted_tree_nodes(taxa_subset.as_slice())
+                .unwrap()
                 .collect_vec();
         });
 }

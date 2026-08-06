@@ -72,12 +72,15 @@ where
     /// The oracle is passed in rather than rebuilt per call so a full matrix
     /// shares one euler-tour index across all `O(n^2)` pairs. Build it once
     /// with [`EulerWalk::lca`] and borrow it here.
+    /// # Errors
+    ///
+    /// [`TreeError::UnknownNode`] if either id is not a node of this tree.
     fn pairwise_distance(
         &self,
         oracle: &LcaOracle<'_, Self>,
         node_id_1: TreeNodeID<Self>,
         node_id_2: TreeNodeID<Self>,
-    ) -> TreeNodeWeight<Self>;
+    ) -> Result<TreeNodeWeight<Self>, TreeError>;
 }
 
 /// A trait describing naive computation of Robinson Foulds distance
@@ -100,7 +103,10 @@ where
 
         let mut self_bps: HashMap<TreeNodeID<Self>, BitVec> = vec![].into_iter().collect();
         let mut self_out_bps: HashSet<BitVec> = vec![].into_iter().collect();
-        for n_id in self.postord_ids(self.get_root_id()) {
+        for n_id in self
+            .postord_ids(self.get_root_id())
+            .expect("invariant: the root id always names a node")
+        {
             let mut bp = BitVec::from_zeros(num_taxa);
             let mut bp_rev = BitVec::from_ones(num_taxa);
             match self.is_leaf(n_id) {
@@ -134,7 +140,10 @@ where
 
         let mut tree_bps: HashMap<TreeNodeID<Self>, BitVec> = vec![].into_iter().collect();
         let mut tree_out_bps: HashSet<BitVec> = vec![].into_iter().collect();
-        for n_id in tree.postord_ids(tree.get_root_id()) {
+        for n_id in tree
+            .postord_ids(tree.get_root_id())
+            .expect("invariant: the root id always names a node")
+        {
             let mut bp = BitVec::from_zeros(num_taxa);
             let mut bp_rev = BitVec::from_ones(num_taxa);
 
@@ -199,7 +208,11 @@ where
             .get_node_ids()
             .map(|node_id| {
                 self.get_cluster_ids(node_id)
-                    .map(|id| self.get_node_taxa(id).unwrap())
+                    .expect("invariant: node_id came from get_node_ids")
+                    .map(|id| {
+                        self.get_node_taxa(id)
+                            .expect("invariant: cluster members are labelled leaves")
+                    })
                     .collect_vec()
             })
             .collect::<HashSet<_>>();
@@ -207,7 +220,11 @@ where
             .get_node_ids()
             .map(|node_id| {
                 tree.get_cluster_ids(node_id)
-                    .map(|id| tree.get_node_taxa(id).unwrap())
+                    .expect("invariant: node_id came from get_node_ids")
+                    .map(|id| {
+                        tree.get_node_taxa(id)
+                            .expect("invariant: cluster members are labelled leaves")
+                    })
                     .collect_vec()
             })
             .collect::<HashSet<_>>();
@@ -232,7 +249,10 @@ where
             [].into_iter().collect::<HashMap<_, _>>();
         let mut intersection_map: HashMap<(TreeNodeID<Self>, TreeNodeID<Self>), usize> =
             [].into_iter().collect::<HashMap<_, _>>();
-        for v in self.postord_ids(self.get_root_id()) {
+        for v in self
+            .postord_ids(self.get_root_id())
+            .expect("invariant: the root id always names a node")
+        {
             let mut mindist = usize::MAX;
             let vsize = if self.is_leaf(v) {
                 1
@@ -242,7 +262,10 @@ where
                     .sum()
             };
             t1_size_map.insert(v, vsize);
-            for c in tree.postord_ids(tree.get_root_id()) {
+            for c in tree
+                .postord_ids(tree.get_root_id())
+                .expect("invariant: the root id always names a node")
+            {
                 let mut size = 0;
                 let mut intersection = 0;
                 if tree.is_leaf(c) {

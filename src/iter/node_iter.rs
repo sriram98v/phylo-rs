@@ -8,6 +8,7 @@ use std::collections::VecDeque;
 use vers_vecs::BitVec;
 
 use crate::{
+    error::TreeError,
     iter::lca::LcaOracle,
     node::simple_rnode::RootedTreeNode,
     tree::simple_rtree::{RootedTree, TreeNodeID},
@@ -19,24 +20,53 @@ where
     Self: RootedTree + Sized,
 {
     /// Returns an iterator of immutable reference of nodes in a tree in postfix order
-    fn postord_nodes(&self, start_node: TreeNodeID<Self>) -> impl Iterator<Item = &Self::Node>;
+    ///
+    /// # Errors
+    ///
+    /// [`TreeError::UnknownNode`] if `start_node` is not a node of this tree.
+    fn postord_nodes(
+        &self,
+        start_node: TreeNodeID<Self>,
+    ) -> Result<impl Iterator<Item = &Self::Node>, TreeError>;
 
     /// Returns an iterator of NodeID's in a tree in postfix order
-    fn postord_ids(&self, start_node: TreeNodeID<Self>) -> impl Iterator<Item = TreeNodeID<Self>>;
+    ///
+    /// # Errors
+    ///
+    /// [`TreeError::UnknownNode`] if `start_node` is not a node of this tree.
+    fn postord_ids(
+        &self,
+        start_node: TreeNodeID<Self>,
+    ) -> Result<impl Iterator<Item = TreeNodeID<Self>>, TreeError>;
 
     /// Returns a DFS iterator of immutable node references a tree
-    fn dfs(&self, start_node_id: TreeNodeID<Self>) -> impl ExactSizeIterator<Item = &Self::Node> {
+    ///
+    /// The start node is checked once, here; the returned iterator cannot fail.
+    ///
+    /// # Errors
+    ///
+    /// [`TreeError::UnknownNode`] if `start_node_id` is not a node of this tree.
+    fn dfs(
+        &self,
+        start_node_id: TreeNodeID<Self>,
+    ) -> Result<impl ExactSizeIterator<Item = &Self::Node>, TreeError> {
+        let start = self
+            .get_node(start_node_id)
+            .ok_or_else(|| TreeError::UnknownNode(start_node_id.into()))?;
         // A tree reaches every node exactly once through the parent/child
         // structure, so no visited-set is needed to guard against revisits.
-        let mut stack = VecDeque::from([self.get_node(start_node_id).unwrap()]);
+        let mut stack = VecDeque::from([start]);
         let mut out_vec = vec![];
         while let Some(x) = stack.pop_front() {
             out_vec.push(x);
             for &child_id in x.get_children().iter().rev() {
-                stack.push_front(self.get_node(child_id).unwrap());
+                stack.push_front(
+                    self.get_node(child_id)
+                        .expect("invariant: child id came from the arena"),
+                );
             }
         }
-        out_vec.into_iter()
+        Ok(out_vec.into_iter())
     }
 }
 
@@ -45,11 +75,25 @@ pub trait BFS
 where
     Self: RootedTree + Sized,
 {
-    /// Returns an iterator of immutable reference of nodes in a tree in postfix order
-    fn bfs_nodes(&self, start_node_id: TreeNodeID<Self>) -> impl Iterator<Item = &Self::Node>;
+    /// Returns an iterator of immutable reference of nodes in a tree in level order
+    ///
+    /// # Errors
+    ///
+    /// [`TreeError::UnknownNode`] if `start_node_id` is not a node of this tree.
+    fn bfs_nodes(
+        &self,
+        start_node_id: TreeNodeID<Self>,
+    ) -> Result<impl Iterator<Item = &Self::Node>, TreeError>;
 
-    /// Returns an iterator of NodeID's in a tree in postfix order
-    fn bfs_ids(&self, start_node_id: TreeNodeID<Self>) -> impl Iterator<Item = TreeNodeID<Self>>;
+    /// Returns an iterator of NodeID's in a tree in level order
+    ///
+    /// # Errors
+    ///
+    /// [`TreeError::UnknownNode`] if `start_node_id` is not a node of this tree.
+    fn bfs_ids(
+        &self,
+        start_node_id: TreeNodeID<Self>,
+    ) -> Result<impl Iterator<Item = TreeNodeID<Self>>, TreeError>;
 }
 
 /// Trait describing breadth-first iteration of nodes in a tree
@@ -58,39 +102,62 @@ where
     Self: RootedTree + Sized,
 {
     /// Returns an iterator of immutable reference of nodes in a tree in prefix order
+    ///
+    /// # Errors
+    ///
+    /// [`TreeError::UnknownNode`] if `start_node_id` is not a node of this tree.
     fn preord_nodes(
         &self,
         start_node_id: TreeNodeID<Self>,
-    ) -> impl ExactSizeIterator<Item = &Self::Node> {
+    ) -> Result<impl ExactSizeIterator<Item = &Self::Node>, TreeError> {
+        let start = self
+            .get_node(start_node_id)
+            .ok_or_else(|| TreeError::UnknownNode(start_node_id.into()))?;
         // A tree reaches every node exactly once, so the visited-set the
         // previous body carried was pure overhead.
-        let mut stack = VecDeque::from([self.get_node(start_node_id).unwrap()]);
+        let mut stack = VecDeque::from([start]);
         let mut out_vec = vec![];
         while let Some(x) = stack.pop_front() {
             out_vec.push(x);
             for &child_id in x.get_children().iter().rev() {
-                stack.push_front(self.get_node(child_id).unwrap());
+                stack.push_front(
+                    self.get_node(child_id)
+                        .expect("invariant: child id came from the arena"),
+                );
             }
         }
-        out_vec.into_iter()
+        Ok(out_vec.into_iter())
     }
 
     /// Returns an iterator of NodeID's in a tree in prefix order
+    ///
+    /// # Errors
+    ///
+    /// [`TreeError::UnknownNode`] if `start_node_id` is not a node of this tree.
     fn preord_ids(
         &self,
         start_node_id: TreeNodeID<Self>,
-    ) -> impl ExactSizeIterator<Item = TreeNodeID<Self>> {
+    ) -> Result<impl ExactSizeIterator<Item = TreeNodeID<Self>>, TreeError> {
+        if self.get_node(start_node_id).is_none() {
+            return Err(TreeError::UnknownNode(start_node_id.into()));
+        }
         // Reversing the children slice in place avoids both the visited-set and
         // the per-node `collect_vec` the previous body allocated.
         let mut stack = VecDeque::from([start_node_id]);
         let mut out_vec = vec![];
         while let Some(x) = stack.pop_front() {
             out_vec.push(x);
-            for &child_id in self.get_node(x).unwrap().get_children().iter().rev() {
+            for &child_id in self
+                .get_node(x)
+                .expect("invariant: id came from the traversal stack")
+                .get_children()
+                .iter()
+                .rev()
+            {
                 stack.push_front(child_id);
             }
         }
-        out_vec.into_iter()
+        Ok(out_vec.into_iter())
     }
 }
 
@@ -100,30 +167,47 @@ where
     Self: RootedTree + Sized,
 {
     /// Returns an iterator of immutable references to nodes in a tree from root to node
+    ///
+    /// # Errors
+    ///
+    /// [`TreeError::UnknownNode`] if `start_node_id` is not a node of this tree.
     fn root_to_node(
         &self,
         start_node_id: TreeNodeID<Self>,
-    ) -> impl ExactSizeIterator<Item = &Self::Node> {
-        let mut stack = VecDeque::from([self.get_node(start_node_id).unwrap()]);
+    ) -> Result<impl ExactSizeIterator<Item = &Self::Node>, TreeError> {
+        let start = self
+            .get_node(start_node_id)
+            .ok_or_else(|| TreeError::UnknownNode(start_node_id.into()))?;
+        let mut stack = VecDeque::from([start]);
         while let Some(x) = stack.pop_front() {
             stack.push_front(x);
             match x.get_parent() {
                 Some(pid) => {
-                    stack.push_front(self.get_node(pid).unwrap());
+                    stack.push_front(
+                        self.get_node(pid)
+                            .expect("invariant: parent id came from the arena"),
+                    );
                 }
                 None => {
                     break;
                 }
             }
         }
-        stack.into_iter()
+        Ok(stack.into_iter())
     }
 
     /// Returns an iterator of NodeID's in a tree from root to node
+    ///
+    /// # Errors
+    ///
+    /// [`TreeError::UnknownNode`] if `start_node_id` is not a node of this tree.
     fn root_to_node_ids(
         &self,
         start_node_id: TreeNodeID<Self>,
-    ) -> impl ExactSizeIterator<Item = TreeNodeID<Self>> {
+    ) -> Result<impl ExactSizeIterator<Item = TreeNodeID<Self>>, TreeError> {
+        if self.get_node(start_node_id).is_none() {
+            return Err(TreeError::UnknownNode(start_node_id.into()));
+        }
         let mut stack = VecDeque::from([start_node_id]);
         while let Some(x) = stack.pop_front() {
             stack.push_front(x);
@@ -136,34 +220,51 @@ where
                 }
             }
         }
-        stack.into_iter()
+        Ok(stack.into_iter())
     }
 
     /// Returns an iterator of immutable references to nodes in a tree from node to root
+    ///
+    /// # Errors
+    ///
+    /// [`TreeError::UnknownNode`] if `start_node_id` is not a node of this tree.
     fn node_to_root(
         &self,
         start_node_id: TreeNodeID<Self>,
-    ) -> impl ExactSizeIterator<Item = &Self::Node> {
-        let mut stack = VecDeque::from([self.get_node(start_node_id).unwrap()]);
+    ) -> Result<impl ExactSizeIterator<Item = &Self::Node>, TreeError> {
+        let start = self
+            .get_node(start_node_id)
+            .ok_or_else(|| TreeError::UnknownNode(start_node_id.into()))?;
+        let mut stack = VecDeque::from([start]);
         while let Some(x) = stack.pop_front() {
             stack.push_back(x);
             match x.get_parent() {
                 Some(pid) => {
-                    stack.push_front(self.get_node(pid).unwrap());
+                    stack.push_front(
+                        self.get_node(pid)
+                            .expect("invariant: parent id came from the arena"),
+                    );
                 }
                 None => {
                     break;
                 }
             }
         }
-        stack.into_iter()
+        Ok(stack.into_iter())
     }
 
     /// Returns an iterator of NodeID's in a tree from node to root
+    ///
+    /// # Errors
+    ///
+    /// [`TreeError::UnknownNode`] if `start_node_id` is not a node of this tree.
     fn node_to_root_ids(
         &self,
         start_node_id: TreeNodeID<Self>,
-    ) -> impl ExactSizeIterator<Item = TreeNodeID<Self>> {
+    ) -> Result<impl ExactSizeIterator<Item = TreeNodeID<Self>>, TreeError> {
+        if self.get_node(start_node_id).is_none() {
+            return Err(TreeError::UnknownNode(start_node_id.into()));
+        }
         let mut stack = VecDeque::from([start_node_id]);
         while let Some(x) = stack.pop_front() {
             stack.push_back(x);
@@ -176,7 +277,7 @@ where
                 }
             }
         }
-        stack.into_iter()
+        Ok(stack.into_iter())
     }
 
     /// Returns depth of a node as number of edges in the path from node to root
@@ -193,35 +294,55 @@ where
     Self: RootedTree + Sized,
 {
     /// Returns euler tour of tree as iterator of immutable references to nodes
+    ///
+    /// # Errors
+    ///
+    /// [`TreeError::UnknownNode`] if `start_node_id` is not a node of this tree.
     fn euler_walk_nodes(
         &self,
         start_node_id: TreeNodeID<Self>,
-    ) -> impl ExactSizeIterator<Item = &Self::Node> {
-        let mut stack = VecDeque::from([self.get_node(start_node_id).unwrap()]);
+    ) -> Result<impl ExactSizeIterator<Item = &Self::Node>, TreeError> {
+        let start = self
+            .get_node(start_node_id)
+            .ok_or_else(|| TreeError::UnknownNode(start_node_id.into()))?;
+        let mut stack = VecDeque::from([start]);
         let mut visited: HashSet<TreeNodeID<Self>> = HashSet::default();
         let mut out_vec = vec![];
         while let Some(node) = stack.pop_front() {
             let id = node.get_id();
             if !visited.insert(id) {
                 if let Some(parent_id) = node.get_parent() {
-                    out_vec.push(self.get_node(parent_id).unwrap())
+                    out_vec.push(
+                        self.get_node(parent_id)
+                            .expect("invariant: parent id came from the arena"),
+                    )
                 }
             } else {
                 out_vec.push(node);
                 stack.push_front(node);
                 for &child_id in node.get_children().iter().rev() {
-                    stack.push_front(self.get_node(child_id).unwrap())
+                    stack.push_front(
+                        self.get_node(child_id)
+                            .expect("invariant: child id came from the arena"),
+                    )
                 }
             }
         }
-        out_vec.into_iter()
+        Ok(out_vec.into_iter())
     }
 
     /// Returns euler tour of tree as iterator of NodeID's
+    ///
+    /// # Errors
+    ///
+    /// [`TreeError::UnknownNode`] if `start_node_id` is not a node of this tree.
     fn euler_walk_ids(
         &self,
         start_node_id: TreeNodeID<Self>,
-    ) -> impl ExactSizeIterator<Item = TreeNodeID<Self>> {
+    ) -> Result<impl ExactSizeIterator<Item = TreeNodeID<Self>>, TreeError> {
+        if self.get_node(start_node_id).is_none() {
+            return Err(TreeError::UnknownNode(start_node_id.into()));
+        }
         let mut stack = VecDeque::from([start_node_id]);
         let mut visited: HashSet<TreeNodeID<Self>> = HashSet::default();
         let mut out_vec = vec![];
@@ -243,7 +364,7 @@ where
                 }
             }
         }
-        out_vec.into_iter()
+        Ok(out_vec.into_iter())
     }
 
     /// Builds a constant-time LCA oracle borrowing this tree immutably.
@@ -261,32 +382,64 @@ where
     /// single lookup. Callers that query repeatedly should build one oracle
     /// with [`Self::lca`] and reuse it.
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// Panics if `node_id_vec` is empty or contains an id that is not a node of
-    /// this tree.
-    fn get_lca_id(&self, node_id_vec: &[TreeNodeID<Self>]) -> TreeNodeID<Self> {
-        self.lca().get_lca_id(node_id_vec)
+    /// [`TreeError::EmptyNodeSet`] if `node_id_vec` is empty;
+    /// [`TreeError::UnknownNode`] if any id is not a node of this tree.
+    fn get_lca_id(&self, node_id_vec: &[TreeNodeID<Self>]) -> Result<TreeNodeID<Self>, TreeError> {
+        if node_id_vec.is_empty() {
+            return Err(TreeError::EmptyNodeSet);
+        }
+        for id in node_id_vec {
+            if self.get_node(*id).is_none() {
+                return Err(TreeError::UnknownNode((*id).into()));
+            }
+        }
+        Ok(self.lca().get_lca_id(node_id_vec))
     }
 
     /// Lowest common ancestor of a slice of nodes, by immutable reference.
-    fn get_lca<'a>(&'a self, node_id_vec: &[TreeNodeID<Self>]) -> &'a Self::Node {
-        self.get_node(self.get_lca_id(node_id_vec)).unwrap()
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::get_lca_id`].
+    fn get_lca<'a>(
+        &'a self,
+        node_id_vec: &[TreeNodeID<Self>],
+    ) -> Result<&'a Self::Node, TreeError> {
+        let lca_id = self.get_lca_id(node_id_vec)?;
+        Ok(self
+            .get_node(lca_id)
+            .expect("invariant: the LCA is a node of this tree"))
     }
 }
 
 /// Trait describing iteration of clusters and bipartitions in a tree.
 pub trait Clusters: DFS + BFS + Sized {
     /// Returns cluster of a node in a rooted tree (smallest cluster in an unrooted tree) as iterator of immutable reference to a node
-    fn get_cluster(&self, node_id: TreeNodeID<Self>) -> impl Iterator<Item = &Self::Node> {
+    ///
+    /// # Errors
+    ///
+    /// [`TreeError::UnknownNode`] if `node_id` is not a node of this tree.
+    fn get_cluster(
+        &self,
+        node_id: TreeNodeID<Self>,
+    ) -> Result<impl Iterator<Item = &Self::Node>, TreeError> {
         // `dfs` already materialises its walk, so filtering it lazily avoids a
         // second `Vec` that only existed to promise `ExactSizeIterator`.
-        self.dfs(node_id).filter(|x| x.is_leaf())
+        Ok(self.dfs(node_id)?.filter(|x| x.is_leaf()))
     }
 
     /// Returns cluster of a node in a rooted tree (smallest cluster in an unrooted tree) as iterator of NodeID's
-    fn get_cluster_ids(&self, node_id: TreeNodeID<Self>) -> impl Iterator<Item = TreeNodeID<Self>> {
-        self.get_cluster(node_id).map(move |x| x.get_id())
+    ///
+    /// # Errors
+    ///
+    /// [`TreeError::UnknownNode`] if `node_id` is not a node of this tree.
+    fn get_cluster_ids(
+        &self,
+        node_id: TreeNodeID<Self>,
+    ) -> Result<impl Iterator<Item = TreeNodeID<Self>>, TreeError> {
+        Ok(self.get_cluster(node_id)?.map(move |x| x.get_id()))
     }
 
     /// Returns all clusters of a tree as iterator of NodeID's
@@ -300,7 +453,10 @@ pub trait Clusters: DFS + BFS + Sized {
     > {
         let mut clusters: HashMap<TreeNodeID<Self>, Vec<TreeNodeID<Self>>> =
             vec![].into_iter().collect();
-        for n_id in self.postord_ids(self.get_root_id()) {
+        for n_id in self
+            .postord_ids(self.get_root_id())
+            .expect("invariant: the root id always names a node")
+        {
             match self.is_leaf(n_id) {
                 true => {
                     clusters.insert(n_id, vec![n_id]);
@@ -308,7 +464,12 @@ pub trait Clusters: DFS + BFS + Sized {
                 false => {
                     let node_cluster = self
                         .get_node_children_ids(n_id)
-                        .flat_map(|x| clusters.get(&x).cloned().unwrap())
+                        .flat_map(|x| {
+                            clusters
+                                .get(&x)
+                                .cloned()
+                                .expect("invariant: children precede parents in post-order")
+                        })
                         .collect_vec();
                     clusters.insert(n_id, node_cluster);
                 }
@@ -321,44 +482,54 @@ pub trait Clusters: DFS + BFS + Sized {
     }
 
     /// Returns size of a cluster of nodes
-    fn get_cluster_size(&self, node_id: TreeNodeID<Self>) -> usize {
-        self.get_cluster_ids(node_id).count()
+    ///
+    /// # Errors
+    ///
+    /// [`TreeError::UnknownNode`] if `node_id` is not a node of this tree.
+    fn get_cluster_size(&self, node_id: TreeNodeID<Self>) -> Result<usize, TreeError> {
+        Ok(self.get_cluster_ids(node_id)?.count())
     }
 
     /// Returns bipartition of an edge in a tree as iterator of immutable reference to a node
     fn get_bipartition(
         &self,
         edge: (TreeNodeID<Self>, TreeNodeID<Self>),
-    ) -> (
-        impl Iterator<Item = &Self::Node>,
-        impl Iterator<Item = &Self::Node>,
-    ) {
-        let c2 = self.get_cluster(edge.1);
+    ) -> Result<
+        (
+            impl Iterator<Item = &Self::Node>,
+            impl Iterator<Item = &Self::Node>,
+        ),
+        TreeError,
+    > {
+        let c2 = self.get_cluster(edge.1)?;
         // Hash the opposite cluster so membership is O(1); the previous body
         // scanned `c2_ids` linearly for every element of `c1`. Both sides are
         // now lazy -- no `Vec` just to hand back an `ExactSizeIterator`.
-        let c2_ids: HashSet<TreeNodeID<Self>> = self.get_cluster_ids(edge.1).collect();
+        let c2_ids: HashSet<TreeNodeID<Self>> = self.get_cluster_ids(edge.1)?.collect();
         let c1 = self
-            .get_cluster(edge.0)
+            .get_cluster(edge.0)?
             .filter(move |x| !c2_ids.contains(&x.get_id()));
-        (c1, c2)
+        Ok((c1, c2))
     }
 
     /// Returns bipartition of an edge in a tree as iterator of NodeID's
     fn get_bipartition_ids(
         &self,
         edge: (TreeNodeID<Self>, TreeNodeID<Self>),
-    ) -> (
-        impl Iterator<Item = TreeNodeID<Self>>,
-        impl Iterator<Item = TreeNodeID<Self>>,
-    ) {
-        let c2 = self.get_cluster_ids(edge.1);
+    ) -> Result<
+        (
+            impl Iterator<Item = TreeNodeID<Self>>,
+            impl Iterator<Item = TreeNodeID<Self>>,
+        ),
+        TreeError,
+    > {
+        let c2 = self.get_cluster_ids(edge.1)?;
         // O(1) membership instead of a linear scan per element of `c1`.
-        let c2_ids: HashSet<TreeNodeID<Self>> = self.get_cluster_ids(edge.1).collect();
+        let c2_ids: HashSet<TreeNodeID<Self>> = self.get_cluster_ids(edge.1)?.collect();
         let c1 = self
-            .get_cluster_ids(edge.0)
+            .get_cluster_ids(edge.0)?
             .filter(move |x| !c2_ids.contains(x));
-        (c1, c2)
+        Ok((c1, c2))
     }
 
     /// Returns all bipartitions of a tree as iterator of NodeID's
@@ -378,11 +549,18 @@ pub trait Clusters: DFS + BFS + Sized {
         let leaf_ids_rev: Vec<TreeNodeID<Self>> = leaf_ids.keys().copied().collect();
         let num_leaves = leaf_ids.len();
         let mut bps: HashMap<TreeNodeID<Self>, BitVec> = vec![].into_iter().collect();
-        for n_id in self.postord_ids(self.get_root_id()) {
+        for n_id in self
+            .postord_ids(self.get_root_id())
+            .expect("invariant: the root id always names a node")
+        {
             let mut bp = BitVec::from_zeros(num_leaves);
             match self.is_leaf(n_id) {
                 true => {
-                    bp.flip_bit(*leaf_ids.get(&n_id).unwrap());
+                    bp.flip_bit(
+                        *leaf_ids
+                            .get(&n_id)
+                            .expect("invariant: n_id is a leaf, so it is in leaf_ids"),
+                    );
                     bps.insert(n_id, bp.clone());
                 }
                 false => {
@@ -390,9 +568,13 @@ pub trait Clusters: DFS + BFS + Sized {
                         continue;
                     }
                     self.get_node_children_ids(n_id)
-                        .map(|x| bps.get(&x).unwrap())
+                        .map(|x| {
+                            bps.get(&x)
+                                .expect("invariant: children precede parents in post-order")
+                        })
                         .for_each(|x| {
-                            let _ = bp.apply_mask_or(x);
+                            bp.apply_mask_or(x)
+                                .expect("invariant: every bitvector is sized to num_leaves");
                         });
                     if self.get_node_parent_id(n_id) != Some(self.get_root_id()) {
                         bps.insert(n_id, bp);
@@ -405,7 +587,10 @@ pub trait Clusters: DFS + BFS + Sized {
             let mut bp1 = Vec::with_capacity(leaf_ids.len());
             let mut bp2 = Vec::with_capacity(leaf_ids.len());
             for (idx, bit) in leaf_ids_rev.iter().enumerate().take(bit_bp.len()) {
-                match bit_bp.is_bit_set(idx).unwrap() {
+                match bit_bp
+                    .is_bit_set(idx)
+                    .expect("invariant: idx is bounded by bit_bp.len()")
+                {
                     true => {
                         bp1.push(bit.to_owned());
                     }
@@ -419,20 +604,32 @@ pub trait Clusters: DFS + BFS + Sized {
     }
 
     /// Returns median NodeID of a set of leaves in a tree.
+    ///
+    /// # Errors
+    ///
+    /// [`TreeError::EmptyNodeSet`] if `taxa_set` yields nothing.
     fn get_median_node_id_for_leaves(
         &self,
         taxa_set: impl Iterator<Item = TreeNodeID<Self>>,
-    ) -> TreeNodeID<Self> {
+    ) -> Result<TreeNodeID<Self>, TreeError> {
         let mut cluster_sizes: HashMap<TreeNodeID<Self>, usize> = vec![].into_iter().collect();
         let mut median_node_id: TreeNodeID<Self> = self.get_root_id();
         let leaf_ids: HashSet<TreeNodeID<Self>> = taxa_set.collect();
-        for n_id in self.postord_ids(self.get_root_id()) {
+        if leaf_ids.is_empty() {
+            return Err(TreeError::EmptyNodeSet);
+        }
+        for n_id in self
+            .postord_ids(self.get_root_id())
+            .expect("invariant: the root id always names a node")
+        {
             if self.is_leaf(n_id) && leaf_ids.contains(&n_id) {
                 cluster_sizes.insert(n_id, 1);
             } else {
                 let mut cluster_size = 0;
                 for c_id in self.get_node_children_ids(n_id) {
-                    cluster_size += cluster_sizes.get(&c_id).unwrap();
+                    cluster_size += cluster_sizes
+                        .get(&c_id)
+                        .expect("invariant: children precede parents in post-order");
                 }
                 cluster_sizes.insert(n_id, cluster_size);
             }
@@ -441,36 +638,58 @@ pub trait Clusters: DFS + BFS + Sized {
             median_node_id = self
                 .get_node_children_ids(median_node_id)
                 .max_by(|x, y| {
-                    let x_cluster_size = cluster_sizes.get(x).unwrap();
-                    let y_cluster_size = cluster_sizes.get(y).unwrap();
+                    let x_cluster_size = cluster_sizes
+                        .get(x)
+                        .expect("invariant: every node was sized in the post-order pass");
+                    let y_cluster_size = cluster_sizes
+                        .get(y)
+                        .expect("invariant: every node was sized in the post-order pass");
                     x_cluster_size.cmp(y_cluster_size)
                 })
-                .unwrap();
-            if cluster_sizes.get(&median_node_id).unwrap() <= &(leaf_ids.len() / 2) {
+                .expect("invariant: the loop only descends into internal nodes");
+            if cluster_sizes
+                .get(&median_node_id)
+                .expect("invariant: every node was sized in the post-order pass")
+                <= &(leaf_ids.len() / 2)
+            {
                 break;
             }
         }
-        median_node_id
+        Ok(median_node_id)
     }
 
     /// Returns immutable reference to median node of a set of leaves in a tree.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::get_median_node_id_for_leaves`].
     fn get_median_node_for_leaves(
         &self,
         taxa_set: impl Iterator<Item = TreeNodeID<Self>>,
-    ) -> &Self::Node {
-        self.get_node(self.get_median_node_id_for_leaves(taxa_set))
-            .unwrap()
+    ) -> Result<&Self::Node, TreeError> {
+        let id = self.get_median_node_id_for_leaves(taxa_set)?;
+        Ok(self
+            .get_node(id)
+            .expect("invariant: the median node is a node of this tree"))
     }
 
     /// Returns an immutable reference to median node of all leaves in a tree.
-    fn get_median_node(&self) -> &Self::Node {
-        let leaves = self.get_leaves().map(|x| x.get_id());
-        self.get_median_node_for_leaves(leaves)
+    ///
+    /// # Errors
+    ///
+    /// [`TreeError::EmptyNodeSet`] if the tree has no leaves.
+    fn get_median_node(&self) -> Result<&Self::Node, TreeError> {
+        let leaves = self.get_leaves().map(|x| x.get_id()).collect_vec();
+        self.get_median_node_for_leaves(leaves.into_iter())
     }
 
     /// Returns median NodeID of all leaves in a tree.
-    fn get_median_node_id(&self) -> TreeNodeID<Self> {
-        let leaves = self.get_leaf_ids();
-        self.get_median_node_id_for_leaves(leaves)
+    ///
+    /// # Errors
+    ///
+    /// [`TreeError::EmptyNodeSet`] if the tree has no leaves.
+    fn get_median_node_id(&self) -> Result<TreeNodeID<Self>, TreeError> {
+        let leaves = self.get_leaf_ids().collect_vec();
+        self.get_median_node_id_for_leaves(leaves.into_iter())
     }
 }

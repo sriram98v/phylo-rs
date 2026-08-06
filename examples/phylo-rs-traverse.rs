@@ -12,7 +12,10 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let now = Instant::now();
 
-    let x = tree.postord_ids(tree.get_root_id()).collect::<Vec<_>>();
+    let x = tree
+        .postord_ids(tree.get_root_id())
+        .unwrap()
+        .collect::<Vec<_>>();
 
     let elapsed = now.elapsed();
     println!("{:?}", &x);

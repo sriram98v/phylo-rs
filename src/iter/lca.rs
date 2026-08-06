@@ -52,7 +52,10 @@ impl<'t, Tree: EulerWalk> LcaOracle<'t, Tree> {
     /// Reads only topology, so it takes `&Tree`: the index is materialised into
     /// fresh local vectors and never written back into the tree.
     pub(crate) fn build(tree: &'t Tree) -> Self {
-        let euler: Vec<TreeNodeID<Tree>> = tree.euler_walk_ids(tree.get_root_id()).collect_vec();
+        let euler: Vec<TreeNodeID<Tree>> = tree
+            .euler_walk_ids(tree.get_root_id())
+            .expect("invariant: the root id always names a node")
+            .collect_vec();
 
         let max_id: usize = tree
             .get_node_ids()

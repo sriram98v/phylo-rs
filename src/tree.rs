@@ -420,7 +420,10 @@ mod simple_rooted_tree {
 
         /// Supresses all nodes of degree 2
         fn supress_unifurcations(&mut self) {
-            let post_ord_node_ids = self.postord_ids(self.get_root_id()).collect_vec();
+            let post_ord_node_ids = self
+                .postord_ids(self.get_root_id())
+                .expect("invariant: the root id always names a node")
+                .collect_vec();
             for node_id in post_ord_node_ids {
                 if !self.is_leaf(node_id) && node_id != self.root {
                     let node_degree = self.node_degree(node_id);
@@ -659,12 +662,18 @@ mod simple_rooted_tree {
             // naive per-call rebuild the old signature forced.
             let oracle = self.lca();
             let mut out_mat = vec![vec![W::infinity(); self.nodes.len()]; self.nodes.len()];
-            for node_ids in self.postord_ids(self.get_root_id()).combinations(2) {
+            for node_ids in self
+                .postord_ids(self.get_root_id())
+                .expect("invariant: the root id always names a node")
+                .combinations(2)
+            {
                 let n1 = node_ids[0];
                 let n2 = node_ids[1];
                 out_mat[n1][n1] = W::zero();
                 out_mat[n2][n2] = W::zero();
-                out_mat[n1][n2] = self.pairwise_distance(&oracle, n1, n2);
+                out_mat[n1][n2] = self
+                    .pairwise_distance(&oracle, n1, n2)
+                    .expect("invariant: both ids came from a traversal of this tree");
                 out_mat[n2][n1] = out_mat[n1][n2];
             }
             out_mat
@@ -675,10 +684,15 @@ mod simple_rooted_tree {
             oracle: &LcaOracle<'_, Self>,
             node_id_1: TreeNodeID<Self>,
             node_id_2: TreeNodeID<Self>,
-        ) -> TreeNodeWeight<Self> {
+        ) -> Result<TreeNodeWeight<Self>, TreeError> {
+            for id in [node_id_1, node_id_2] {
+                if !self.contains_node(id) {
+                    return Err(TreeError::UnknownNode(id));
+                }
+            }
             let lca = oracle.get_lca_id(vec![node_id_1, node_id_2].as_slice());
             let d1: TreeNodeWeight<Self> = self
-                .node_to_root_ids(node_id_1)
+                .node_to_root_ids(node_id_1)?
                 .map(|x| match x == self.get_root_id() {
                     true => W::zero(),
                     false => self.get_edge_weight(0, x).unwrap_or(W::one()),
@@ -686,7 +700,7 @@ mod simple_rooted_tree {
                 .sum();
 
             let d2: TreeNodeWeight<Self> = self
-                .node_to_root_ids(node_id_2)
+                .node_to_root_ids(node_id_2)?
                 .map(|x| match x == self.get_root_id() {
                     true => W::zero(),
                     false => self.get_edge_weight(0, x).unwrap_or(W::one()),
@@ -694,14 +708,14 @@ mod simple_rooted_tree {
                 .sum();
 
             let dlca: TreeNodeWeight<Self> = self
-                .node_to_root_ids(lca)
+                .node_to_root_ids(lca)?
                 .map(|x| match x == self.get_root_id() {
                     true => W::zero(),
                     false => self.get_edge_weight(0, x).unwrap_or(W::one()),
                 })
                 .sum();
 
-            d1 + d2 - (W::one() + W::one()) * dlca
+            Ok(d1 + d2 - (W::one() + W::one()) * dlca)
         }
     }
 
@@ -714,12 +728,21 @@ mod simple_rooted_tree {
         fn postord_ids(
             &self,
             start_node: TreeNodeID<Self>,
-        ) -> impl Iterator<Item = TreeNodeID<Self>> {
-            DFSPostOrderIterator::new(self, start_node).map(|x| x.get_id())
+        ) -> Result<impl Iterator<Item = TreeNodeID<Self>>, TreeError> {
+            if !self.contains_node(start_node) {
+                return Err(TreeError::UnknownNode(start_node));
+            }
+            Ok(DFSPostOrderIterator::new(self, start_node).map(|x| x.get_id()))
         }
 
-        fn postord_nodes(&self, start_node: TreeNodeID<Self>) -> impl Iterator<Item = &Self::Node> {
-            DFSPostOrderIterator::new(self, start_node)
+        fn postord_nodes(
+            &self,
+            start_node: TreeNodeID<Self>,
+        ) -> Result<impl Iterator<Item = &Self::Node>, TreeError> {
+            if !self.contains_node(start_node) {
+                return Err(TreeError::UnknownNode(start_node));
+            }
+            Ok(DFSPostOrderIterator::new(self, start_node))
         }
     }
 
@@ -729,15 +752,24 @@ mod simple_rooted_tree {
         W: EdgeWeight,
         Z: NodeWeight,
     {
-        fn bfs_nodes(&self, start_node_id: TreeNodeID<Self>) -> impl Iterator<Item = &Self::Node> {
-            BFSIterator::new(self, start_node_id)
+        fn bfs_nodes(
+            &self,
+            start_node_id: TreeNodeID<Self>,
+        ) -> Result<impl Iterator<Item = &Self::Node>, TreeError> {
+            if !self.contains_node(start_node_id) {
+                return Err(TreeError::UnknownNode(start_node_id));
+            }
+            Ok(BFSIterator::new(self, start_node_id))
         }
 
         fn bfs_ids(
             &self,
             start_node_id: TreeNodeID<Self>,
-        ) -> impl Iterator<Item = TreeNodeID<Self>> {
-            BFSIterator::new(self, start_node_id).map(|x| x.get_id())
+        ) -> Result<impl Iterator<Item = TreeNodeID<Self>>, TreeError> {
+            if !self.contains_node(start_node_id) {
+                return Err(TreeError::UnknownNode(start_node_id));
+            }
+            Ok(BFSIterator::new(self, start_node_id).map(|x| x.get_id()))
         }
     }
 
@@ -752,7 +784,9 @@ mod simple_rooted_tree {
             new_tree_root_id: TreeNodeID<Self>,
             leaf_ids: &[TreeNodeID<Self>],
         ) -> impl Iterator<Item = Self::Node> {
-            let node_postord_iter = self.postord_nodes(new_tree_root_id);
+            let node_postord_iter = self
+                .postord_nodes(new_tree_root_id)
+                .expect("new_tree_root_id is not a node of this tree");
             let mut node_map: Vec<Option<Self::Node>> = vec![None; self.nodes.len()];
 
             node_map[new_tree_root_id] = Some(
@@ -905,7 +939,7 @@ mod simple_rooted_tree {
             leaf_ids: &[TreeNodeID<Self>],
             node_iter: impl Iterator<Item = TreeNodeID<Self>>,
         ) -> Result<Self, TreeError> {
-            let new_tree_root_id = self.get_lca_id(leaf_ids);
+            let new_tree_root_id = self.get_lca_id(leaf_ids)?;
             let new_nodes =
                 self.contracted_tree_nodes_from_iter(new_tree_root_id, leaf_ids, node_iter);
             let mut new_tree = SimpleRootedTree {
@@ -941,11 +975,17 @@ mod simple_rooted_tree {
         fn get_median_node_id_for_leaves(
             &self,
             taxa_set: impl Iterator<Item = TreeNodeID<Self>>,
-        ) -> TreeNodeID<Self> {
+        ) -> Result<TreeNodeID<Self>, TreeError> {
             let mut cluster_sizes = vec![0; self.nodes.len()];
             let mut median_node_id: TreeNodeID<Self> = self.get_root_id();
             let leaf_ids: HashSet<TreeNodeID<Self>> = taxa_set.collect();
-            for n_id in self.postord_ids(self.get_root_id()) {
+            if leaf_ids.is_empty() {
+                return Err(TreeError::EmptyNodeSet);
+            }
+            for n_id in self
+                .postord_ids(self.get_root_id())
+                .expect("invariant: the root id always names a node")
+            {
                 if self.is_leaf(n_id) && leaf_ids.contains(&n_id) {
                     cluster_sizes[n_id] = 1;
                 } else {
@@ -967,27 +1007,29 @@ mod simple_rooted_tree {
                     break;
                 }
             }
-            median_node_id
+            Ok(median_node_id)
         }
 
         fn get_median_node_for_leaves(
             &self,
             taxa_set: impl Iterator<Item = TreeNodeID<Self>>,
-        ) -> &Self::Node {
-            self.get_node(self.get_median_node_id_for_leaves(taxa_set))
-                .expect("invariant: id came from get_median_node_id_for_leaves")
+        ) -> Result<&Self::Node, TreeError> {
+            let id = self.get_median_node_id_for_leaves(taxa_set)?;
+            Ok(self
+                .get_node(id)
+                .expect("invariant: id came from get_median_node_id_for_leaves"))
         }
 
         /// Returns an immutable reference to median node of all leaves in a tree.
-        fn get_median_node(&self) -> &Self::Node {
-            let leaves = self.get_leaves().map(|x| x.get_id());
-            self.get_median_node_for_leaves(leaves)
+        fn get_median_node(&self) -> Result<&Self::Node, TreeError> {
+            let leaves = self.get_leaves().map(|x| x.get_id()).collect_vec();
+            self.get_median_node_for_leaves(leaves.into_iter())
         }
 
         /// Returns median Node<T,W,Z>ID of all leaves in a tree.
-        fn get_median_node_id(&self) -> TreeNodeID<Self> {
-            let leaves = self.get_leaf_ids();
-            self.get_median_node_id_for_leaves(leaves)
+        fn get_median_node_id(&self) -> Result<TreeNodeID<Self>, TreeError> {
+            let leaves = self.get_leaf_ids().collect_vec();
+            self.get_median_node_id_for_leaves(leaves.into_iter())
         }
     }
 
@@ -1117,7 +1159,7 @@ mod simple_rooted_tree {
                 .get_node_mut(pruned_tree.get_root_id())
                 .expect("invariant: SimpleRootedTree::new seeds its root")
                 .add_children(children.into_iter());
-            let dfs = self.dfs(node_id).collect_vec();
+            let dfs = self.dfs(node_id)?.collect_vec();
             for node in dfs {
                 // self.nodes.remove(node.get_id());
                 pruned_tree.set_node(node.clone());
@@ -1172,7 +1214,11 @@ mod simple_rooted_tree {
     {
         fn balance_subtree(&mut self) -> Result<(), TreeError> {
             assert!(
-                self.get_cluster(self.get_root_id()).collect_vec().len() == 4,
+                self.get_cluster(self.get_root_id())
+                    .expect("invariant: the root id always names a node")
+                    .collect_vec()
+                    .len()
+                    == 4,
                 "Quartets have 4 leaves!"
             );
             assert!(self.is_binary(), "Cannot balance non-binary tree!");

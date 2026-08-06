@@ -177,7 +177,10 @@ where
         leaf_id_map.push(node_id);
     }
 
-    let postord = tree.postord_ids(root).collect::<Vec<_>>();
+    let postord = tree
+        .postord_ids(root)
+        .expect("invariant: the root id always names a node")
+        .collect::<Vec<_>>();
 
     let mut total_log_likelihood = 0.0;
     for (p_idx, pattern) in comp.patterns.iter().enumerate() {
@@ -260,8 +263,14 @@ where
         final_sequences.insert(node_id, vec![0; aln.width]);
     }
 
-    let postord = tree.postord_ids(root).collect::<Vec<_>>();
-    let preord = tree.preord_ids(root).collect::<Vec<_>>();
+    let postord = tree
+        .postord_ids(root)
+        .expect("invariant: the root id always names a node")
+        .collect::<Vec<_>>();
+    let preord = tree
+        .preord_ids(root)
+        .expect("invariant: the root id always names a node")
+        .collect::<Vec<_>>();
 
     for (p_idx, pattern) in comp.patterns.iter().enumerate() {
         let multiplicity = comp.multiplicity[p_idx] as f64;
@@ -437,8 +446,14 @@ where
         final_sequences.insert(node_id, vec![0; aln.width]);
     }
 
-    let postord = tree.postord_ids(root).collect::<Vec<_>>();
-    let preord = tree.preord_ids(root).collect::<Vec<_>>();
+    let postord = tree
+        .postord_ids(root)
+        .expect("invariant: the root id always names a node")
+        .collect::<Vec<_>>();
+    let preord = tree
+        .preord_ids(root)
+        .expect("invariant: the root id always names a node")
+        .collect::<Vec<_>>();
 
     for (p_idx, pattern) in comp.patterns.iter().enumerate() {
         let multiplicity = comp.multiplicity[p_idx] as f64;

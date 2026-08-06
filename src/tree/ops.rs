@@ -95,7 +95,7 @@ where
         subtree.set_root(self.get_root_id());
         subtree.set_node(self.get_root().clone());
         for node_id in node_id_list.into_iter() {
-            let ancestors: Vec<Self::Node> = self.root_to_node(node_id).cloned().collect();
+            let ancestors: Vec<Self::Node> = self.root_to_node(node_id)?.cloned().collect();
             placeholder_kept |= ancestors.iter().any(|node| node.get_id() == placeholder);
             subtree.set_nodes(ancestors.into_iter());
         }
@@ -114,7 +114,7 @@ where
         // in the new arena, so track whether the real nodes cover it.
         let placeholder = subtree.get_root_id();
         subtree.set_root(node_id);
-        let nodes: Vec<Self::Node> = self.dfs(node_id).cloned().collect();
+        let nodes: Vec<Self::Node> = self.dfs(node_id)?.cloned().collect();
         let placeholder_kept = nodes.iter().any(|node| node.get_id() == placeholder);
         subtree.set_nodes(nodes.into_iter());
         subtree
@@ -240,8 +240,9 @@ pub trait ContractTree: EulerWalk + DFS {
     fn contracted_tree_nodes(
         &self,
         leaf_ids: &[TreeNodeID<Self>],
-    ) -> impl Iterator<Item = Self::Node> {
-        self.contracted_tree_nodes_from_root(self.get_lca_id(leaf_ids), leaf_ids)
+    ) -> Result<impl Iterator<Item = Self::Node>, TreeError> {
+        let root = self.get_lca_id(leaf_ids)?;
+        Ok(self.contracted_tree_nodes_from_root(root, leaf_ids))
     }
 
     /// Returns a deep copy of the nodes in the contracted tree, given its root.
@@ -255,7 +256,9 @@ pub trait ContractTree: EulerWalk + DFS {
         new_tree_root_id: TreeNodeID<Self>,
         leaf_ids: &[TreeNodeID<Self>],
     ) -> impl Iterator<Item = Self::Node> {
-        let node_postord_iter = self.postord_nodes(new_tree_root_id);
+        let node_postord_iter = self
+            .postord_nodes(new_tree_root_id)
+            .expect("new_tree_root_id is not a node of this tree");
         let mut node_map: HashMap<TreeNodeID<Self>, Self::Node> = HashMap::from_iter(vec![(
             new_tree_root_id,
             self.get_node(new_tree_root_id)
@@ -425,6 +428,7 @@ where
         // Step 1: collect leaves in pre-order to fix leaf ordering σ
         let leaf_ids: Vec<TreeNodeID<Self>> = self
             .preord_ids(self.get_root_id())
+            .expect("invariant: the root id always names a node")
             .filter(|id| self.is_leaf(*id))
             .collect();
 

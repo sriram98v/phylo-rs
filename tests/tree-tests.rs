@@ -124,22 +124,31 @@ fn tree_iter() {
     let new_node = PhyloNode::new(7);
     tree.add_child(5, new_node);
     dbg!(&tree.get_node(1).unwrap().get_children());
-    dbg!(&tree.dfs(tree.get_root_id()).collect_vec());
-    dbg!(&tree.bfs_ids(tree.get_root_id()).collect_vec());
-    dbg!(&tree.postord_ids(tree.get_root_id()).collect_vec());
-    dbg!(&tree.euler_walk_ids(tree.get_root_id()).collect_vec());
-    dbg!(&tree.dfs(tree.get_root_id()).collect_vec());
-    dbg!(&tree.node_to_root(5).collect_vec());
-    dbg!(&tree.root_to_node(5).collect_vec());
+    dbg!(&tree.dfs(tree.get_root_id()).unwrap().collect_vec());
+    dbg!(&tree.bfs_ids(tree.get_root_id()).unwrap().collect_vec());
+    dbg!(&tree.postord_ids(tree.get_root_id()).unwrap().collect_vec());
+    dbg!(&tree
+        .euler_walk_ids(tree.get_root_id())
+        .unwrap()
+        .collect_vec());
+    dbg!(&tree.dfs(tree.get_root_id()).unwrap().collect_vec());
+    dbg!(&tree.node_to_root(5).unwrap().collect_vec());
+    dbg!(&tree.root_to_node(5).unwrap().collect_vec());
 }
 #[test]
 fn read_small_tree() {
     let input_str = String::from("((A,B),C);");
     let tree = PhyloTree::from_newick(input_str.as_bytes()).unwrap();
-    dbg!(&tree.euler_walk_ids(tree.get_root_id()).collect_vec());
+    dbg!(&tree
+        .euler_walk_ids(tree.get_root_id())
+        .unwrap()
+        .collect_vec());
     let input_str = String::from("((A:0.1,B:0.2),C:0.6);");
     let tree = PhyloTree::from_newick(input_str.as_bytes()).unwrap();
-    dbg!(&tree.euler_walk_ids(tree.get_root_id()).collect_vec());
+    dbg!(&tree
+        .euler_walk_ids(tree.get_root_id())
+        .unwrap()
+        .collect_vec());
     dbg!(format!("{}", &tree.to_newick()));
     assert_eq!(
         &tree.get_taxa_space().collect::<HashSet<&String>>(),
@@ -150,7 +159,7 @@ fn read_small_tree() {
     let input_str = String::from("((A:1e-3,B:2e-3),C:6e-3);");
     let tree = PhyloTree::from_newick(input_str.as_bytes()).unwrap();
     dbg!(format!("{}", &tree.to_newick()));
-    for node in tree.postord_nodes(tree.get_root_id()) {
+    for node in tree.postord_nodes(tree.get_root_id()).unwrap() {
         dbg!(node.get_weight());
     }
 }
@@ -383,9 +392,10 @@ fn tree_nni() {
 fn tree_cluster() {
     let input_str: String = String::from("((A,B),C);");
     let tree = PhyloTree::from_newick(input_str.as_bytes()).unwrap();
-    dbg!(&tree.get_cluster(0).collect_vec());
-    dbg!(&tree.get_cluster(1).collect_vec());
+    dbg!(&tree.get_cluster(0).unwrap().collect_vec());
+    dbg!(&tree.get_cluster(1).unwrap().collect_vec());
     let bp = tree.get_bipartition((0, 1));
+    let bp = bp.unwrap();
     dbg!(&bp.0.collect_vec());
     dbg!(&bp.1.collect_vec());
 }
@@ -422,7 +432,10 @@ fn median_node() {
     let input_str: String = String::from("(((A,B),C),D);");
     let tree = PhyloTree::from_newick(input_str.as_bytes()).unwrap();
     dbg!(format!("{}", &tree.to_newick()));
-    dbg!(tree.get_cluster(tree.get_median_node_id()).collect_vec());
+    dbg!(tree
+        .get_cluster(tree.get_median_node_id().unwrap())
+        .unwrap()
+        .collect_vec());
 }
 
 #[test]
@@ -483,7 +496,7 @@ fn contract_tree_roots_at_the_lca_of_the_subset() {
     let tree = weighted_fixture();
     let subset = taxa_ids(&tree, &["0", "2"]);
 
-    let expected_root = tree.get_lca_id(subset.as_slice());
+    let expected_root = tree.get_lca_id(subset.as_slice()).unwrap();
     let contracted = tree.contract_tree(subset.as_slice()).unwrap();
 
     assert_eq!(contracted.get_root_id(), expected_root);
@@ -533,6 +546,7 @@ fn contracted_tree_nodes_covers_the_contracted_tree() {
 
     let node_ids = tree
         .contracted_tree_nodes(subset.as_slice())
+        .unwrap()
         .map(|n| n.get_id())
         .sorted()
         .collect_vec();
@@ -585,10 +599,10 @@ fn contract_tree_with_oracle_preserves_weights() {
 fn contract_tree_from_iter_matches_contract_tree_topology() {
     let tree = PhyloTree::yule(30);
     let subset = tree.get_leaf_ids().step_by(3).collect_vec();
-    let root = tree.get_lca_id(subset.as_slice());
+    let root = tree.get_lca_id(subset.as_slice()).unwrap();
 
     let from_iter = tree
-        .contract_tree_from_iter(subset.as_slice(), tree.postord_ids(root))
+        .contract_tree_from_iter(subset.as_slice(), tree.postord_ids(root).unwrap())
         .unwrap();
     let direct = tree.contract_tree(subset.as_slice()).unwrap();
 
@@ -933,8 +947,9 @@ fn ola_roundtrip_newick_5() {
 /// euler walk. Deliberately naive: it is the oracle the precomputed path is
 /// checked against, so it must share nothing with it.
 fn oracle_lca(tree: &PhyloTree, x: usize, y: usize) -> usize {
-    let x_ancestors = tree.node_to_root_ids(x).collect_vec();
+    let x_ancestors = tree.node_to_root_ids(x).unwrap().collect_vec();
     tree.node_to_root_ids(y)
+        .unwrap()
         .find(|a| x_ancestors.contains(a))
         .expect("nodes of one tree share a root")
 }
@@ -990,7 +1005,7 @@ fn subtree_extraction_leaves_no_phantom_nodes() {
     let child = tree.subtree(root).unwrap();
 
     // The arena must hold exactly the nodes reachable from the subtree root.
-    let reachable = child.dfs(child.get_root_id()).count();
+    let reachable = child.dfs(child.get_root_id()).unwrap().count();
     assert_eq!(
         child.get_node_ids().count(),
         reachable,
@@ -1188,7 +1203,7 @@ proptest::proptest! {
         let leaves = tree.get_leaf_ids().collect_vec();
         for pair in leaves.iter().combinations(2) {
             let q = [*pair[0], *pair[1]];
-            proptest::prop_assert_eq!(oracle.get_lca_id(&q), tree.get_lca_id(&q));
+            proptest::prop_assert_eq!(oracle.get_lca_id(&q), tree.get_lca_id(&q).unwrap());
         }
     }
 }
