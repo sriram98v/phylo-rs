@@ -27,6 +27,22 @@ pub enum NewickError {
         /// Byte offset of the opening bracket
         idx: usize,
     },
+    /// A branch length was present but did not parse as a weight
+    #[error("invalid branch length at byte {idx}: {text:?}")]
+    InvalidWeight {
+        /// Byte offset at which the branch length started
+        idx: usize,
+        /// The text that failed to parse
+        text: String,
+    },
+    /// A label was present but did not parse as the tree's taxa type
+    #[error("invalid taxon label at byte {idx}: {text:?}")]
+    InvalidLabel {
+        /// Byte offset at which the label started
+        idx: usize,
+        /// The text that failed to parse
+        text: String,
+    },
     /// The input contained no tree
     #[error("empty input: no tree found")]
     Empty,

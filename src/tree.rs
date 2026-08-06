@@ -499,6 +499,9 @@ mod simple_rooted_tree {
         W: EdgeWeight,
         Z: NodeWeight,
     {
+        /// # Panics
+        ///
+        /// Panics if `T` cannot parse the integer labels the simulator generates.
         fn yule(num_taxa: usize) -> SimpleRootedTree<T, W, Z> {
             let mut tree = SimpleRootedTree::new(0);
             if num_taxa < 3 {
@@ -506,10 +509,20 @@ mod simple_rooted_tree {
             }
             let new_node = Node::new(1);
             tree.add_child(0, new_node);
-            tree.set_node_taxa(1, T::from_str("0").ok());
+            tree.set_node_taxa(
+                1,
+                Some(T::from_str("0").unwrap_or_else(|_| {
+                    panic!("the taxa type must parse integer labels for simulated trees")
+                })),
+            );
             let new_node = Node::new(2);
             tree.add_child(0, new_node);
-            tree.set_node_taxa(2, T::from_str("1").ok());
+            tree.set_node_taxa(
+                2,
+                Some(T::from_str("1").unwrap_or_else(|_| {
+                    panic!("the taxa type must parse integer labels for simulated trees")
+                })),
+            );
             if num_taxa < 4 {
                 return tree;
             }
@@ -528,7 +541,12 @@ mod simple_rooted_tree {
                 let new_leaf = Node::new(tree.next_id());
                 let new_leaf_id = new_leaf.get_id();
                 tree.add_child(split_node_id, new_leaf);
-                tree.set_node_taxa(new_leaf_id, T::from_str(&i.to_string()).ok());
+                tree.set_node_taxa(
+                    new_leaf_id,
+                    Some(T::from_str(&i.to_string()).unwrap_or_else(|_| {
+                        panic!("the taxa type must parse integer labels for simulated trees")
+                    })),
+                );
                 current_leaf_ids.push(new_leaf_id);
             }
             tree
@@ -541,6 +559,9 @@ mod simple_rooted_tree {
         W: EdgeWeight,
         Z: NodeWeight,
     {
+        /// # Panics
+        ///
+        /// Panics if `T` cannot parse the integer labels the simulator generates.
         fn unif(num_taxa: usize) -> SimpleRootedTree<T, W, Z> {
             let mut tree = SimpleRootedTree::new(0);
             if num_taxa < 3 {
@@ -548,10 +569,20 @@ mod simple_rooted_tree {
             }
             let new_node = Node::new(1);
             tree.add_child(0, new_node);
-            tree.set_node_taxa(1, T::from_str("0").ok());
+            tree.set_node_taxa(
+                1,
+                Some(T::from_str("0").unwrap_or_else(|_| {
+                    panic!("the taxa type must parse integer labels for simulated trees")
+                })),
+            );
             let new_node = Node::new(2);
             tree.add_child(0, new_node);
-            tree.set_node_taxa(2, T::from_str("1").ok());
+            tree.set_node_taxa(
+                2,
+                Some(T::from_str("1").unwrap_or_else(|_| {
+                    panic!("the taxa type must parse integer labels for simulated trees")
+                })),
+            );
             if num_taxa < 3 {
                 return tree;
             }
@@ -571,7 +602,12 @@ mod simple_rooted_tree {
                 let new_leaf = Node::new(tree.next_id());
                 let new_leaf_id = new_leaf.get_id();
                 tree.add_child(split_node_id, new_leaf);
-                tree.set_node_taxa(new_leaf_id, T::from_str(&i.to_string()).ok());
+                tree.set_node_taxa(
+                    new_leaf_id,
+                    Some(T::from_str(&i.to_string()).unwrap_or_else(|_| {
+                        panic!("the taxa type must parse integer labels for simulated trees")
+                    })),
+                );
                 current_node_ids.push(new_leaf_id);
             }
             tree

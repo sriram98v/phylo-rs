@@ -95,7 +95,7 @@ fn benchmark_cophen_dist_naive(bencher: divan::Bencher, taxa_size: usize) {
             (t1, t2)
         })
         .bench_refs(|(t1, t2)| {
-            t1.cophen_dist(t2, NORM);
+            t1.cophen_dist(t2, NORM).unwrap();
         });
 }
 
@@ -229,6 +229,6 @@ fn benchmark_cophen_dist_par(bencher: divan::Bencher, taxa_size: usize) {
             (t1, t2)
         })
         .bench_refs(|(t1, t2)| {
-            t1.cophen_dist_par(t2, NORM);
+            t1.cophen_dist_par(t2, NORM).unwrap();
         });
 }

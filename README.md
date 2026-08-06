@@ -108,9 +108,9 @@ use phylo::prelude::*;
 
 let tree = PhyloTree::from_newick("((A:0.1,B:0.2),C:0.6);".as_bytes()).unwrap();
 
-let dfs = tree.dfs(tree.get_root_id());
-let bfs = tree.bfs_ids(tree.get_root_id());
-let postorder = tree.postord_ids(tree.get_root_id());
+let dfs = tree.dfs(tree.get_root_id()).unwrap();
+let bfs = tree.bfs_ids(tree.get_root_id()).unwrap();
+let postorder = tree.postord_ids(tree.get_root_id()).unwrap();
 ```
 
 ### Constant-time LCA
@@ -144,11 +144,11 @@ fn depth(tree: &PhyloTree, node_id: usize) -> f32 {
 let mut tree_1 = PhyloTree::from_newick("((A:0.1,B:0.2):0.6,(C:0.3,D:0.4):0.5);".as_bytes()).unwrap();
 let mut tree_2 = PhyloTree::from_newick("((D:0.3,C:0.4):0.5,(B:0.2,A:0.1):0.6);".as_bytes()).unwrap();
 
-let _ = tree_1.set_zeta(depth);
-let _ = tree_2.set_zeta(depth);
+tree_1.set_zeta(depth).unwrap();
+tree_2.set_zeta(depth).unwrap();
 
 let cluster_affinity = tree_1.ca(&tree_2);
-let cophenetic = tree_1.cophen_dist(&tree_2, 2);
+let cophenetic = tree_1.cophen_dist(&tree_2, 2).unwrap();
 ```
 
 ### Likelihood and ancestral reconstruction

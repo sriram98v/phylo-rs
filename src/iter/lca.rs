@@ -128,7 +128,9 @@ impl<'t, Tree: EulerWalk> LcaOracle<'t, Tree> {
 
     /// Constant-time LCA of a slice of nodes, by immutable reference.
     pub fn get_lca(&self, node_id_vec: &[TreeNodeID<Tree>]) -> &'t Tree::Node {
-        self.tree.get_node(self.get_lca_id(node_id_vec)).unwrap()
+        self.tree
+            .get_node(self.get_lca_id(node_id_vec))
+            .expect("invariant: the LCA is a node of the borrowed tree")
     }
 
     /// First-appearance position of `node_id` in the euler tour.

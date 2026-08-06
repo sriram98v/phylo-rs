@@ -68,7 +68,11 @@ impl Alignment {
             return Err(AsrError::InvalidAlignment("Empty FASTA file".to_string()));
         }
 
-        let width = seqs.values().next().unwrap().len();
+        let width = seqs
+            .values()
+            .next()
+            .expect("invariant: the empty case returned above")
+            .len();
         if !seqs.values().all(|s| s.len() == width) {
             return Err(AsrError::InvalidAlignment(
                 "Ragged alignment: sequences have different lengths".to_string(),

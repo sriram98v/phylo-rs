@@ -43,7 +43,10 @@ where
         tree: &'a impl RootedTree<Node = Node<T, W, Z>>,
         start_id: usize,
     ) -> BFSIterator<'a, T, W, Z> {
-        let max_id = tree.get_node_ids().max().unwrap();
+        let max_id = tree
+            .get_node_ids()
+            .max()
+            .expect("invariant: a tree always has at least a root node");
         let mut nodes = vec![None; max_id + 1];
         tree.get_nodes()
             .for_each(|node| nodes[node.get_id()] = Some(node));
@@ -65,11 +68,16 @@ where
         tree: &'a impl RootedTree<Node = Node<T, W, Z>>,
         start_id: usize,
     ) -> DFSPostOrderIterator<'a, T, W, Z> {
-        let max_id = tree.get_node_ids().max().unwrap();
+        let max_id = tree
+            .get_node_ids()
+            .max()
+            .expect("invariant: a tree always has at least a root node");
         let mut nodes = vec![None; max_id + 1];
         tree.get_nodes()
             .for_each(|node| nodes[node.get_id()] = Some(node));
-        let start_node = nodes[start_id].take().unwrap();
+        let start_node = nodes[start_id]
+            .take()
+            .expect("invariant: callers validate start_id before constructing the iterator");
         DFSPostOrderIterator {
             stack: vec![start_node].into(),
             nodes,
@@ -89,7 +97,9 @@ where
         match self.stack.pop_front() {
             None => None,
             Some(curr_node_id) => {
-                let curr_node = self.nodes[curr_node_id].take().unwrap();
+                let curr_node = self.nodes[curr_node_id]
+                    .take()
+                    .expect("invariant: each node is taken exactly once per walk");
                 for &x in curr_node.get_children() {
                     self.stack.push_back(x);
                 }

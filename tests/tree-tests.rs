@@ -627,9 +627,9 @@ fn cophenetic_dist() {
     t1.set_zeta(depth).unwrap();
     t2.set_zeta(depth).unwrap();
 
-    assert_eq!(t1.cophen_dist(&t2, 1), 4_f32);
+    assert_eq!(t1.cophen_dist(&t2, 1).unwrap(), 4_f32);
 
-    dbg!(t1.cophen_dist(&t2, 0));
+    dbg!(t1.cophen_dist(&t2, 0).unwrap());
 }
 
 #[test]
@@ -782,7 +782,7 @@ fn cophenetic_dist_par() {
     t1.set_zeta(depth).unwrap();
     t2.set_zeta(depth).unwrap();
 
-    assert_eq!(t1.cophen_dist_par(&t2, 1), 4_f32);
+    assert_eq!(t1.cophen_dist_par(&t2, 1).unwrap(), 4_f32);
 }
 
 // ── OLA tests ──────────────────────────────────────────────────────────────

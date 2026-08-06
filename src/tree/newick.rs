@@ -234,16 +234,26 @@ where
             ':' => {
                 sc.bump();
                 sc.skip_trivia(&mut raw)?;
-                let weight = sc
-                    .read_token()
-                    .parse::<TreeNodeWeight<SimpleRootedTree<T, W, Z>>>();
+                let idx = sc.pos;
+                let token = sc.read_token();
+                let weight = token
+                    .parse::<TreeNodeWeight<SimpleRootedTree<T, W, Z>>>()
+                    .map_err(|_| NewickError::InvalidWeight {
+                        idx,
+                        text: token.to_string(),
+                    })?;
                 if let Some(node) = tree.get_node_mut(current) {
-                    node.set_weight(weight.ok());
+                    node.set_weight(Some(weight));
                 }
             }
             '\'' => {
+                let idx = sc.pos;
                 let label = sc.read_quoted()?;
-                tree.set_node_taxa(current, T::from_str(&label).ok());
+                let taxa = T::from_str(&label).map_err(|_| NewickError::InvalidLabel {
+                    idx,
+                    text: label.clone(),
+                })?;
+                tree.set_node_taxa(current, Some(taxa));
                 saw_content = true;
             }
             _ => {
@@ -252,7 +262,11 @@ where
                     // A delimiter with no meaning here (e.g. a stray `]`).
                     return Err(NewickError::InvalidCharacter { idx: sc.pos });
                 }
-                tree.set_node_taxa(current, T::from_str(label).ok());
+                let taxa = T::from_str(label).map_err(|_| NewickError::InvalidLabel {
+                    idx: sc.pos,
+                    text: label.to_string(),
+                })?;
+                tree.set_node_taxa(current, Some(taxa));
                 saw_content = true;
             }
         }

@@ -37,15 +37,24 @@ where
     }
 
     /// Returns true if node zeta value is not None
+    ///
+    /// # Panics
+    ///
+    /// Panics if `node_id` is not a node of this tree.
     fn is_zeta_set(&self, node_id: TreeNodeID<Self>) -> bool {
-        self.get_node(node_id).unwrap().is_zeta_set()
+        self.get_node(node_id)
+            .expect("node_id is not a node of this tree")
+            .is_zeta_set()
     }
 
     /// Returns true if all node zeta value is not None    
     fn is_all_zeta_set(&self) -> bool {
         // Iterate ids so the allocating `get_nodes` default isn't materialised.
-        self.get_node_ids()
-            .all(|id| self.get_node(id).unwrap().is_zeta_set())
+        self.get_node_ids().all(|id| {
+            self.get_node(id)
+                .expect("invariant: id came from get_node_ids")
+                .is_zeta_set()
+        })
     }
 
     /// Sets zeta value of a node in a tree by value.
@@ -111,10 +120,18 @@ where
             let mut bp_rev = BitVec::from_ones(num_taxa);
             match self.is_leaf(n_id) {
                 true => {
-                    let leaf_meta = self.get_node_taxa(n_id).unwrap();
-                    bp.flip_bit(*all_taxa_map.get(leaf_meta).unwrap());
+                    let leaf_meta = self
+                        .get_node_taxa(n_id)
+                        .expect("invariant: leaves carry a taxon");
+                    bp.flip_bit(
+                        *all_taxa_map
+                            .get(leaf_meta)
+                            .expect("invariant: all_taxa_map spans both trees' taxa"),
+                    );
 
-                    let _ = bp_rev.apply_mask_xor(&bp);
+                    bp_rev
+                        .apply_mask_xor(&bp)
+                        .expect("invariant: every bitvector is sized to num_taxa");
                     self_bps.insert(n_id, bp.clone());
                     self_out_bps.insert(bp);
                     self_out_bps.insert(bp_rev);
@@ -124,12 +141,19 @@ where
                         continue;
                     } else {
                         self.get_node_children_ids(n_id)
-                            .map(|x| self_bps.get(&x).unwrap())
+                            .map(|x| {
+                                self_bps
+                                    .get(&x)
+                                    .expect("invariant: children precede parents in post-order")
+                            })
                             .for_each(|x| {
-                                let _ = bp.apply_mask_or(x);
+                                bp.apply_mask_or(x)
+                                    .expect("invariant: every bitvector is sized to num_taxa");
                             });
 
-                        let _ = bp_rev.apply_mask_xor(&bp);
+                        bp_rev
+                            .apply_mask_xor(&bp)
+                            .expect("invariant: every bitvector is sized to num_taxa");
                         self_bps.insert(n_id, bp.clone());
                         self_out_bps.insert(bp);
                         self_out_bps.insert(bp_rev);
@@ -149,10 +173,18 @@ where
 
             match tree.is_leaf(n_id) {
                 true => {
-                    let leaf_meta = tree.get_node_taxa(n_id).unwrap();
-                    bp.flip_bit(*all_taxa_map.get(leaf_meta).unwrap());
+                    let leaf_meta = tree
+                        .get_node_taxa(n_id)
+                        .expect("invariant: leaves carry a taxon");
+                    bp.flip_bit(
+                        *all_taxa_map
+                            .get(leaf_meta)
+                            .expect("invariant: all_taxa_map spans both trees' taxa"),
+                    );
 
-                    let _ = bp_rev.apply_mask_xor(&bp);
+                    bp_rev
+                        .apply_mask_xor(&bp)
+                        .expect("invariant: every bitvector is sized to num_taxa");
 
                     tree_bps.insert(n_id, bp.clone());
                     tree_out_bps.insert(bp);
@@ -163,12 +195,19 @@ where
                         continue;
                     } else {
                         tree.get_node_children_ids(n_id)
-                            .map(|x| tree_bps.get(&x).unwrap())
+                            .map(|x| {
+                                tree_bps
+                                    .get(&x)
+                                    .expect("invariant: children precede parents in post-order")
+                            })
                             .for_each(|x| {
-                                let _ = bp.apply_mask_or(x);
+                                bp.apply_mask_or(x)
+                                    .expect("invariant: every bitvector is sized to num_taxa");
                             });
 
-                        let _ = bp_rev.apply_mask_xor(&bp);
+                        bp_rev
+                            .apply_mask_xor(&bp)
+                            .expect("invariant: every bitvector is sized to num_taxa");
 
                         tree_bps.insert(n_id, bp.clone());
                         tree_out_bps.insert(bp);
@@ -258,7 +297,11 @@ where
                 1
             } else {
                 self.get_node_children_ids(v)
-                    .map(|x| t1_size_map.get(&x).unwrap())
+                    .map(|x| {
+                        t1_size_map
+                            .get(&x)
+                            .expect("invariant: children precede parents in post-order")
+                    })
                     .sum()
             };
             t1_size_map.insert(v, vsize);
@@ -271,7 +314,11 @@ where
                 if tree.is_leaf(c) {
                     size = 1;
                     if self.is_leaf(v) {
-                        if self.get_node_taxa(v).unwrap() == tree.get_node_taxa(c).unwrap() {
+                        if self.get_node_taxa(v).expect(
+                            "invariant: branch is guarded by is_leaf, and leaves carry a taxon",
+                        ) == tree.get_node_taxa(c).expect(
+                            "invariant: branch is guarded by is_leaf, and leaves carry a taxon",
+                        ) {
                             intersection = 1
                         } else {
                             intersection = 0
@@ -286,8 +333,12 @@ where
                     }
                 } else {
                     for cch in tree.get_node_children_ids(c) {
-                        size += t2_size_map.get(&cch).unwrap();
-                        intersection += intersection_map.get(&(v, cch)).unwrap();
+                        size += t2_size_map
+                            .get(&cch)
+                            .expect("invariant: children precede parents in post-order");
+                        intersection += intersection_map
+                            .get(&(v, cch))
+                            .expect("invariant: (v, child) was inserted on an earlier pass");
                     }
                 }
                 t2_size_map.insert(c, size);
@@ -320,9 +371,22 @@ where
     <Self as RootedTree>::Node: RootedMetaNode + RootedZetaNode,
     TreeNodeZeta<Self>: NodeWeight,
 {
+    /// Returns the first node whose zeta annotation is unset, if any.
+    fn first_unset_zeta(&self) -> Option<TreeNodeID<Self>> {
+        self.get_node_ids().find(|id| !self.is_zeta_set(*id))
+    }
+
     /// Returns zeta of leaf by taxa
-    fn get_zeta_taxa(&self, taxa: &TreeNodeMeta<Self>) -> TreeNodeZeta<Self> {
-        self.get_zeta(self.get_taxa_node_id(taxa).unwrap()).unwrap()
+    ///
+    /// # Errors
+    ///
+    /// [`TreeError::TaxaSetMismatch`] if `taxa` does not label a node of this
+    /// tree; [`TreeError::MissingZeta`] if that node has no zeta set.
+    fn get_zeta_taxa(&self, taxa: &TreeNodeMeta<Self>) -> Result<TreeNodeZeta<Self>, TreeError> {
+        let id = self
+            .get_taxa_node_id(taxa)
+            .ok_or(TreeError::TaxaSetMismatch)?;
+        self.get_zeta(id).ok_or(TreeError::MissingZeta(id.into()))
     }
 
     /// Reurns the nth norm of an iterator composed of floating point values
@@ -347,7 +411,7 @@ where
             .sum::<TreeNodeZeta<Self>>()
             .powf(
                 <TreeNodeZeta<Self> as NumCast>::from(norm)
-                    .unwrap()
+                    .expect("invariant: a u32 norm is representable in the zeta type")
                     .powi(-1),
             )
     }
@@ -364,15 +428,24 @@ where
             .sum::<TreeNodeZeta<Self>>()
             .powf(
                 <TreeNodeZeta<Self> as NumCast>::from(norm)
-                    .unwrap()
+                    .expect("invariant: a u32 norm is representable in the zeta type")
                     .powi(-1),
             )
     }
 
     /// Reurns the cophenetic distance between two trees using the naive algorithm (\Theta(n^2))
-    fn cophen_dist<'a>(&'a self, tree: &'a Self, norm: u32) -> TreeNodeZeta<Self> {
-        if !self.is_all_zeta_set() || !tree.is_all_zeta_set() {
-            panic!("Zeta values not set");
+    ///
+    /// # Errors
+    ///
+    /// [`TreeError::MissingZeta`] if either tree has a node with no zeta set;
+    /// call [`PathFunction::set_zeta`] first.
+    fn cophen_dist<'a>(
+        &'a self,
+        tree: &'a Self,
+        norm: u32,
+    ) -> Result<TreeNodeZeta<Self>, TreeError> {
+        if let Some(id) = self.first_unset_zeta().or_else(|| tree.first_unset_zeta()) {
+            return Err(TreeError::MissingZeta(id.into()));
         }
         let binding1 = self
             .get_taxa_space()
@@ -387,9 +460,18 @@ where
 
     #[cfg(feature = "parallel")]
     /// Returns the cophenetic distance between two trees using the naive algorithm (\Theta(n^2))
-    fn cophen_dist_par<'a>(&'a self, tree: &'a Self, norm: u32) -> TreeNodeZeta<Self> {
-        if !self.is_all_zeta_set() || !tree.is_all_zeta_set() {
-            panic!("Zeta values not set");
+    ///
+    /// # Errors
+    ///
+    /// [`TreeError::MissingZeta`] if either tree has a node with no zeta set;
+    /// call [`PathFunction::set_zeta`] first.
+    fn cophen_dist_par<'a>(
+        &'a self,
+        tree: &'a Self,
+        norm: u32,
+    ) -> Result<TreeNodeZeta<Self>, TreeError> {
+        if let Some(id) = self.first_unset_zeta().or_else(|| tree.first_unset_zeta()) {
+            return Err(TreeError::MissingZeta(id.into()));
         }
         let binding1 = self
             .get_taxa_space()
@@ -409,7 +491,7 @@ where
         tree: &'a Self,
         norm: u32,
         taxa_set: impl Iterator<Item = &'a TreeNodeMeta<Self>> + Send,
-    ) -> TreeNodeZeta<Self> {
+    ) -> Result<TreeNodeZeta<Self>, TreeError> {
         // One euler-tour index per tree, shared across every pair, rather than
         // the naive per-query rebuild the trait fallback would do.
         let self_oracle = self.lca();
@@ -419,29 +501,33 @@ where
             .par_bridge()
             .map(|x| match x[0] == x[1] {
                 true => {
-                    let zeta_1 = self.get_zeta_taxa(x[0]);
-                    let zeta_2 = tree.get_zeta_taxa(x[0]);
-                    (zeta_1 - zeta_2).abs()
+                    let zeta_1 = self.get_zeta_taxa(x[0])?;
+                    let zeta_2 = tree.get_zeta_taxa(x[0])?;
+                    Ok((zeta_1 - zeta_2).abs())
                 }
                 false => {
                     let self_ids = x
                         .iter()
-                        .map(|a| self.get_taxa_node_id(a).unwrap())
-                        .collect_vec();
+                        .map(|a| self.get_taxa_node_id(a).ok_or(TreeError::TaxaSetMismatch))
+                        .collect::<Result<Vec<_>, _>>()?;
                     let tree_ids = x
                         .iter()
-                        .map(|a| tree.get_taxa_node_id(a).unwrap())
-                        .collect_vec();
+                        .map(|a| tree.get_taxa_node_id(a).ok_or(TreeError::TaxaSetMismatch))
+                        .collect::<Result<Vec<_>, _>>()?;
                     let t_lca_id = self_oracle.get_lca_id(self_ids.as_slice());
                     let t_hat_lca_id = tree_oracle.get_lca_id(tree_ids.as_slice());
-                    let zeta_1 = self.get_zeta(t_lca_id).unwrap();
-                    let zeta_2 = tree.get_zeta(t_hat_lca_id).unwrap();
-                    (zeta_1 - zeta_2).abs()
+                    let zeta_1 = self
+                        .get_zeta(t_lca_id)
+                        .ok_or(TreeError::MissingZeta(t_lca_id.into()))?;
+                    let zeta_2 = tree
+                        .get_zeta(t_hat_lca_id)
+                        .ok_or(TreeError::MissingZeta(t_hat_lca_id.into()))?;
+                    Ok((zeta_1 - zeta_2).abs())
                 }
             })
-            .collect();
+            .collect::<Result<Vec<_>, TreeError>>()?;
 
-        Self::compute_norm_par(cophen_vec, norm)
+        Ok(Self::compute_norm_par(cophen_vec, norm))
     }
 
     /// Returns the Cophenetic distance between two trees restricted to a taxa set using the \theta(n^2) naive algorithm.
@@ -450,7 +536,7 @@ where
         tree: &'a Self,
         norm: u32,
         taxa_set: impl Iterator<Item = &'a TreeNodeMeta<Self>>,
-    ) -> TreeNodeZeta<Self> {
+    ) -> Result<TreeNodeZeta<Self>, TreeError> {
         // One euler-tour index per tree, shared across every pair, rather than
         // the naive per-query rebuild the trait fallback would do.
         let self_oracle = self.lca();
@@ -459,27 +545,32 @@ where
             .combinations_with_replacement(2)
             .map(|x| match x[0] == x[1] {
                 true => {
-                    let zeta_1 = self.get_zeta_taxa(x[0]);
-                    let zeta_2 = tree.get_zeta_taxa(x[0]);
-                    (zeta_1 - zeta_2).abs()
+                    let zeta_1 = self.get_zeta_taxa(x[0])?;
+                    let zeta_2 = tree.get_zeta_taxa(x[0])?;
+                    Ok((zeta_1 - zeta_2).abs())
                 }
                 false => {
                     let self_ids = x
                         .iter()
-                        .map(|a| self.get_taxa_node_id(a).unwrap())
-                        .collect_vec();
+                        .map(|a| self.get_taxa_node_id(a).ok_or(TreeError::TaxaSetMismatch))
+                        .collect::<Result<Vec<_>, _>>()?;
                     let tree_ids = x
                         .iter()
-                        .map(|a| tree.get_taxa_node_id(a).unwrap())
-                        .collect_vec();
+                        .map(|a| tree.get_taxa_node_id(a).ok_or(TreeError::TaxaSetMismatch))
+                        .collect::<Result<Vec<_>, _>>()?;
                     let t_lca_id = self_oracle.get_lca_id(self_ids.as_slice());
                     let t_hat_lca_id = tree_oracle.get_lca_id(tree_ids.as_slice());
-                    let zeta_1 = self.get_zeta(t_lca_id).unwrap();
-                    let zeta_2 = tree.get_zeta(t_hat_lca_id).unwrap();
-                    (zeta_1 - zeta_2).abs()
+                    let zeta_1 = self
+                        .get_zeta(t_lca_id)
+                        .ok_or(TreeError::MissingZeta(t_lca_id.into()))?;
+                    let zeta_2 = tree
+                        .get_zeta(t_hat_lca_id)
+                        .ok_or(TreeError::MissingZeta(t_hat_lca_id.into()))?;
+                    Ok((zeta_1 - zeta_2).abs())
                 }
-            });
+            })
+            .collect::<Result<Vec<_>, TreeError>>()?;
 
-        Self::compute_norm(cophen_vec, norm)
+        Ok(Self::compute_norm(cophen_vec.into_iter(), norm))
     }
 }
