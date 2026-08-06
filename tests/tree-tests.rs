@@ -443,43 +443,168 @@ fn const_lca() {
     dbg!(format!("{}", tree.lca().get_lca_id(vec![1, 10].as_slice())));
 }
 
+/// `(1:1.13,((0:0.93,3:1.40):0.58,(2:1.14,4:1.04)):0.11);`
+///
+/// Contracting to `{0, 1, 4}` suppresses two unifurcations, and the weights on
+/// the surviving edges are hand-computable, which is what makes this a usable
+/// golden fixture.
+fn weighted_fixture() -> PhyloTree {
+    let newick = "(1:1.13,((0:0.93,3:1.40):0.58,(2:1.14,4:1.04)):0.11);";
+    PhyloTree::from_newick(newick.as_bytes()).unwrap()
+}
+
+/// Resolves taxa names to node ids in the order given.
+fn taxa_ids(tree: &PhyloTree, taxa: &[&str]) -> Vec<usize> {
+    taxa.iter()
+        .map(|t| tree.get_taxa_node_id(&t.to_string()).unwrap())
+        .collect_vec()
+}
+
+/// The taxa labelling a tree's leaves, sorted.
+fn leaf_taxa(tree: &PhyloTree) -> Vec<String> {
+    tree.get_leaf_ids()
+        .map(|id| tree.get_node_taxa(id).unwrap().clone())
+        .sorted()
+        .collect_vec()
+}
+
 #[test]
-fn contract_tree() {
-    fn depth(tree: &PhyloTree, node_id: usize) -> f32 {
-        tree.depth(node_id) as f32
+fn contract_tree_keeps_exactly_the_requested_leaves() {
+    let tree = weighted_fixture();
+    let subset = taxa_ids(&tree, &["1", "0", "4"]);
+
+    let contracted = tree.contract_tree(subset.as_slice()).unwrap();
+
+    assert_eq!(leaf_taxa(&contracted), vec!["0", "1", "4"]);
+}
+
+#[test]
+fn contract_tree_roots_at_the_lca_of_the_subset() {
+    // A subset drawn from one side of the root must root at that side, not at
+    // the original root.
+    let tree = weighted_fixture();
+    let subset = taxa_ids(&tree, &["0", "2"]);
+
+    let expected_root = tree.get_lca_id(subset.as_slice());
+    let contracted = tree.contract_tree(subset.as_slice()).unwrap();
+
+    assert_eq!(contracted.get_root_id(), expected_root);
+    assert_ne!(
+        contracted.get_root_id(),
+        tree.get_root_id(),
+        "a one-sided subset should not root at the original root"
+    );
+    assert_eq!(leaf_taxa(&contracted), vec!["0", "2"]);
+}
+
+#[test]
+fn contract_tree_suppresses_unifurcations() {
+    let tree = PhyloTree::yule(40);
+    let all_leaves = tree.get_leaf_ids().collect_vec();
+    let subset = all_leaves.iter().step_by(4).copied().collect_vec();
+
+    let contracted = tree.contract_tree(subset.as_slice()).unwrap();
+
+    for id in contracted.get_node_ids() {
+        if !contracted.is_leaf(id) {
+            assert!(
+                contracted.get_node_children_ids(id).len() >= 2,
+                "node {id} survived contraction as a unifurcation"
+            );
+        }
     }
-    let mut tree = PhyloTree::yule(10);
-    dbg!(&tree);
-    tree.set_zeta(depth).unwrap();
-    println!("{}", tree.to_newick());
-    let taxa_subset = vec![
-        "1".to_string(),
-        "4".to_string(),
-        "3".to_string(),
-        "7".to_string(),
-    ]
-    .into_iter()
-    .map(|x| tree.get_taxa_node_id(&x).unwrap())
-    .collect_vec();
-    let new_tree = tree.contract_tree(taxa_subset.as_slice()).unwrap();
-    println!("{}", new_tree.to_newick());
+}
 
-    let input_str: String = String::from("(1:1.13,((0:0.93,3:1.40):0.58,(2:1.14,4:1.04)):0.11);");
-    let tree: SimpleRootedTree<String, f32, f32> =
-        SimpleRootedTree::from_newick(input_str.as_bytes()).unwrap();
-    dbg!(&tree);
-    let taxa_subset = vec![
-        "1".to_string(),
-        "0".to_string(),
-        "4".to_string(),
-        // "7".to_string(),
-    ]
-    .into_iter()
-    .map(|x| tree.get_taxa_node_id(&x).unwrap())
-    .collect_vec();
+#[test]
+fn contract_tree_sums_edge_weights_across_suppressed_nodes() {
+    // Leaf 0 sits under a unifurcation of weight 0.58 once leaf 3 is dropped,
+    // so its edge becomes 0.93 + 0.58 = 1.51. Leaf 4's parent carries no
+    // weight, so 1.04 is unchanged.
+    let tree = weighted_fixture();
+    let subset = taxa_ids(&tree, &["1", "0", "4"]);
 
-    let new_tree = tree.contract_tree(taxa_subset.as_slice()).unwrap();
-    println!("{}", new_tree.to_newick());
+    let contracted = tree.contract_tree(subset.as_slice()).unwrap();
+
+    assert_eq!(
+        contracted.to_newick().to_string(),
+        "(1:1.13,(0:1.51,4:1.04):0.11);"
+    );
+}
+
+#[test]
+fn contracted_tree_nodes_covers_the_contracted_tree() {
+    let tree = PhyloTree::yule(30);
+    let subset = tree.get_leaf_ids().step_by(3).collect_vec();
+
+    let node_ids = tree
+        .contracted_tree_nodes(subset.as_slice())
+        .map(|n| n.get_id())
+        .sorted()
+        .collect_vec();
+    let contracted = tree.contract_tree(subset.as_slice()).unwrap();
+
+    assert_eq!(node_ids, contracted.get_node_ids().sorted().collect_vec());
+}
+
+#[test]
+fn contract_tree_with_oracle_matches_contract_tree() {
+    // One oracle, many contractions -- the amortisation `contract_tree` cannot
+    // do for itself. Every result must match the standalone call exactly.
+    let tree = PhyloTree::yule(50);
+    let leaves = tree.get_leaf_ids().collect_vec();
+    let oracle = tree.lca();
+
+    for stride in [2usize, 3, 5, 7] {
+        let subset = leaves.iter().step_by(stride).copied().collect_vec();
+
+        let with_oracle = tree
+            .contract_tree_with_oracle(subset.as_slice(), &oracle)
+            .unwrap();
+        let standalone = tree.contract_tree(subset.as_slice()).unwrap();
+
+        assert_eq!(with_oracle.get_root_id(), standalone.get_root_id());
+        assert_eq!(leaf_taxa(&with_oracle), leaf_taxa(&standalone));
+        assert_eq!(
+            with_oracle.to_newick().to_string(),
+            standalone.to_newick().to_string(),
+            "stride {stride} disagreed"
+        );
+    }
+}
+
+#[test]
+fn contract_tree_with_oracle_preserves_weights() {
+    let tree = weighted_fixture();
+    let subset = taxa_ids(&tree, &["1", "0", "4"]);
+    let oracle = tree.lca();
+
+    let contracted = tree
+        .contract_tree_with_oracle(subset.as_slice(), &oracle)
+        .unwrap();
+
+    assert_eq!(
+        contracted.to_newick().to_string(),
+        "(1:1.13,(0:1.51,4:1.04):0.11);"
+    );
+}
+
+#[test]
+fn contract_tree_from_iter_matches_contract_tree_topology() {
+    let tree = PhyloTree::yule(30);
+    let subset = tree.get_leaf_ids().step_by(3).collect_vec();
+    let root = tree.get_lca_id(subset.as_slice());
+
+    let from_iter = tree
+        .contract_tree_from_iter(subset.as_slice(), tree.postord_ids(root))
+        .unwrap();
+    let direct = tree.contract_tree(subset.as_slice()).unwrap();
+
+    assert_eq!(from_iter.get_root_id(), direct.get_root_id());
+    assert_eq!(leaf_taxa(&from_iter), leaf_taxa(&direct));
+    assert_eq!(
+        from_iter.get_node_ids().sorted().collect_vec(),
+        direct.get_node_ids().sorted().collect_vec()
+    );
 }
 
 #[test]

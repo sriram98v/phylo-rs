@@ -6,6 +6,7 @@ use std::{
 use crate::node::simple_rnode::{NodeTaxa, RootedMetaNode};
 use crate::prelude::{Clusters, EulerWalk, PreOrder, RootedMetaTree, RootedTree, DFS};
 use crate::{
+    iter::lca::LcaOracle,
     iter::node_iter::Ancestors,
     node::simple_rnode::RootedTreeNode,
     tree::simple_rtree::{TreeNodeID, TreeNodeMeta},
@@ -130,6 +131,9 @@ pub trait ContractTree: EulerWalk + DFS {
             self.get_node(new_tree_root_id).unwrap().clone(),
         )]);
         let mut remove_list: HashSet<TreeNodeID<Self>> = HashSet::from_iter(vec![]);
+        // Set membership rather than a slice scan: `contains` on the `leaf_ids`
+        // slice is linear, which made the leaf test quadratic in the subset size.
+        let leaf_ids: HashSet<&TreeNodeID<Self>> = leaf_ids.iter().collect();
         node_iter
             .map(|x| self.get_node(x).cloned().unwrap())
             .for_each(|mut node| {
@@ -211,21 +215,38 @@ pub trait ContractTree: EulerWalk + DFS {
         node_map.into_values()
     }
 
-    /// Returns a deep copy of the nodes in the contracted tree
+    /// Returns a deep copy of the nodes in the contracted tree.
+    ///
+    /// Resolves the contracted tree's root by [`EulerWalk::get_lca_id`], which
+    /// builds a throwaway [`LcaOracle`]. Callers that already know the root -- or
+    /// that contract repeatedly against one tree -- should use
+    /// [`Self::contracted_tree_nodes_from_root`] instead.
     fn contracted_tree_nodes(
         &self,
         leaf_ids: &[TreeNodeID<Self>],
     ) -> impl Iterator<Item = Self::Node> {
-        let new_tree_root_id = self.get_lca_id(leaf_ids);
+        self.contracted_tree_nodes_from_root(self.get_lca_id(leaf_ids), leaf_ids)
+    }
+
+    /// Returns a deep copy of the nodes in the contracted tree, given its root.
+    ///
+    /// `new_tree_root_id` must be the LCA of `leaf_ids`. Taking it as a
+    /// parameter -- as [`Self::contracted_tree_nodes_from_iter`] already does --
+    /// is what lets a caller resolve it once and reuse it, rather than paying
+    /// for an Euler tour and RMQ build per contraction.
+    fn contracted_tree_nodes_from_root(
+        &self,
+        new_tree_root_id: TreeNodeID<Self>,
+        leaf_ids: &[TreeNodeID<Self>],
+    ) -> impl Iterator<Item = Self::Node> {
         let node_postord_iter = self.postord_nodes(new_tree_root_id);
         let mut node_map: HashMap<TreeNodeID<Self>, Self::Node> = HashMap::from_iter(vec![(
             new_tree_root_id,
             self.get_node(new_tree_root_id).unwrap().clone(),
         )]);
+        // Set membership: a slice scan per leaf makes the contraction quadratic
+        // in the subset size.
         let leaf_ids: HashSet<&TreeNodeID<Self>> = leaf_ids.iter().collect();
-        // HashSet membership: the previous `Vec` scanned linearly on every
-        // `contains`, making the contraction quadratic (the `_from_iter`
-        // sibling already used a set).
         let mut remove_list: HashSet<TreeNodeID<Self>> = HashSet::default();
         node_postord_iter.for_each(|orig_node| {
             let mut node = orig_node.clone();
@@ -308,7 +329,24 @@ pub trait ContractTree: EulerWalk + DFS {
     }
 
     /// Returns a contracted tree from slice containing NodeID's
-    fn contract_tree(&self, leaf_ids: &[TreeNodeID<Self>]) -> Result<Self, ()>;
+    ///
+    /// Builds a throwaway [`LcaOracle`] to find the contracted tree's root -- an
+    /// Euler tour plus RMQ, linear in the size of the original tree. Callers
+    /// contracting the same tree more than once should build one oracle with
+    /// [`EulerWalk::lca`] and hand it to [`Self::contract_tree_with_oracle`],
+    /// which is the same work amortised.
+    fn contract_tree(&self, leaf_ids: &[TreeNodeID<Self>]) -> Result<Self, ()> {
+        self.contract_tree_with_oracle(leaf_ids, &self.lca())
+    }
+
+    /// Returns a contracted tree, reusing a prebuilt LCA oracle.
+    ///
+    /// `oracle` must have been built from this tree.
+    fn contract_tree_with_oracle(
+        &self,
+        leaf_ids: &[TreeNodeID<Self>],
+        oracle: &LcaOracle<'_, Self>,
+    ) -> Result<Self, ()>;
 
     /// Returns a contracted tree from an iterator containing NodeID's
     fn contract_tree_from_iter(
