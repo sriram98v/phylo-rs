@@ -6,6 +6,7 @@ use std::{
 use crate::node::simple_rnode::{NodeTaxa, RootedMetaNode};
 use crate::prelude::{Clusters, EulerWalk, PreOrder, RootedMetaTree, RootedTree, DFS};
 use crate::{
+    iter::lca::LcaOracle,
     iter::node_iter::Ancestors,
     node::simple_rnode::RootedTreeNode,
     tree::simple_rtree::{TreeNodeID, TreeNodeMeta},
@@ -130,6 +131,8 @@ pub trait ContractTree: EulerWalk + DFS {
             self.get_node(new_tree_root_id).unwrap().clone(),
         )]);
         let mut remove_list: HashSet<TreeNodeID<Self>> = HashSet::from_iter(vec![]);
+
+        let leaf_ids: HashSet<&TreeNodeID<Self>> = leaf_ids.iter().collect();
         node_iter
             .map(|x| self.get_node(x).cloned().unwrap())
             .for_each(|mut node| {
@@ -211,21 +214,37 @@ pub trait ContractTree: EulerWalk + DFS {
         node_map.into_values()
     }
 
-    /// Returns a deep copy of the nodes in the contracted tree
+    /// Returns a deep copy of the nodes in the contracted tree.
+    ///
+    /// Resolves the contracted tree's root by [`EulerWalk::get_lca_id`], which
+    /// builds a throwaway [`LcaOracle`]. Callers that already know the root -- or
+    /// that contract repeatedly against one tree -- should use
+    /// [`Self::contracted_tree_nodes_from_root`] instead.
     fn contracted_tree_nodes(
         &self,
         leaf_ids: &[TreeNodeID<Self>],
     ) -> impl Iterator<Item = Self::Node> {
-        let new_tree_root_id = self.get_lca_id(leaf_ids);
+        self.contracted_tree_nodes_from_root(self.get_lca_id(leaf_ids), leaf_ids)
+    }
+
+    /// Returns a deep copy of the nodes in the contracted tree, given its root.
+    ///
+    /// `new_tree_root_id` must be the LCA of `leaf_ids`. Taking it as a
+    /// parameter -- as [`Self::contracted_tree_nodes_from_iter`] already does --
+    /// is what lets a caller resolve it once and reuse it, rather than paying
+    /// for an Euler tour and RMQ build per contraction.
+    fn contracted_tree_nodes_from_root(
+        &self,
+        new_tree_root_id: TreeNodeID<Self>,
+        leaf_ids: &[TreeNodeID<Self>],
+    ) -> impl Iterator<Item = Self::Node> {
         let node_postord_iter = self.postord_nodes(new_tree_root_id);
         let mut node_map: HashMap<TreeNodeID<Self>, Self::Node> = HashMap::from_iter(vec![(
             new_tree_root_id,
             self.get_node(new_tree_root_id).unwrap().clone(),
         )]);
+
         let leaf_ids: HashSet<&TreeNodeID<Self>> = leaf_ids.iter().collect();
-        // HashSet membership: the previous `Vec` scanned linearly on every
-        // `contains`, making the contraction quadratic (the `_from_iter`
-        // sibling already used a set).
         let mut remove_list: HashSet<TreeNodeID<Self>> = HashSet::default();
         node_postord_iter.for_each(|orig_node| {
             let mut node = orig_node.clone();
@@ -308,7 +327,24 @@ pub trait ContractTree: EulerWalk + DFS {
     }
 
     /// Returns a contracted tree from slice containing NodeID's
-    fn contract_tree(&self, leaf_ids: &[TreeNodeID<Self>]) -> Result<Self, ()>;
+    ///
+    /// Builds a throwaway [`LcaOracle`] to find the contracted tree's root -- an
+    /// Euler tour plus RMQ, linear in the size of the original tree. Callers
+    /// contracting the same tree more than once should build one oracle with
+    /// [`EulerWalk::lca`] and hand it to [`Self::contract_tree_with_oracle`],
+    /// which is the same work amortised.
+    fn contract_tree(&self, leaf_ids: &[TreeNodeID<Self>]) -> Result<Self, ()> {
+        self.contract_tree_with_oracle(leaf_ids, &self.lca())
+    }
+
+    /// Returns a contracted tree, reusing a prebuilt LCA oracle.
+    ///
+    /// `oracle` must have been built from this tree.
+    fn contract_tree_with_oracle(
+        &self,
+        leaf_ids: &[TreeNodeID<Self>],
+        oracle: &LcaOracle<'_, Self>,
+    ) -> Result<Self, ()>;
 
     /// Returns a contracted tree from an iterator containing NodeID's
     fn contract_tree_from_iter(
@@ -382,21 +418,29 @@ where
         // Without it every `get_lca_id` call would rebuild the whole index.
         let oracle = self.lca();
 
+        // LCA(l_i, l_j) for every j < i, held across both passes below. Each is
+        // an O(1) oracle query, but there are O(n^2) of them, and the deepest-LCA
+        // pass and the sibling filter want the same set -- recomputing it for the
+        // second pass doubled the query count for no gain. Reused across
+        // iterations of `i` so the growing buffer is allocated once.
+        let mut lcas: Vec<TreeNodeID<Self>> = Vec::with_capacity(n);
+
         // Step 2: for each leaf l_i (i >= 1), find its sibling in the restricted tree T^i
         for i in 1..n {
             let li = leaf_ids[i];
 
+            lcas.clear();
+            lcas.extend((0..i).map(|j| oracle.get_lca_id(&[li, leaf_ids[j]])));
+
             // The parent of l_i in T^i is the LCA(l_i, l_j) with the greatest depth over all j < i
-            let p_id = (0..i)
-                .map(|j| oracle.get_lca_id(&[li, leaf_ids[j]]))
-                .max_by_key(|&lca| oracle.get_node_depth(lca))
+            let p_id = *lcas
+                .iter()
+                .max_by_key(|&&lca| oracle.get_node_depth(lca))
                 .unwrap();
 
             // Sibling's leaves in T^{i-1}: those l_j (j < i) whose LCA with l_i is exactly p_id,
             // meaning they live on the opposite side of p_id from l_i
-            let sibling_indices: Vec<usize> = (0..i)
-                .filter(|&j| oracle.get_lca_id(&[li, leaf_ids[j]]) == p_id)
-                .collect();
+            let sibling_indices: Vec<usize> = (0..i).filter(|&j| lcas[j] == p_id).collect();
 
             let entry = if sibling_indices.len() == 1 {
                 // Sibling is a single leaf: entry = its index in σ (non-negative)

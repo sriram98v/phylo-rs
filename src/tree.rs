@@ -228,7 +228,7 @@ mod simple_rooted_tree {
         /// without an intervening insert returns the same id both times.
         /// Callers rely on that.
         ///
-        /// Scans from [`Self::first_free`] rather than from zero. Since every
+        /// Scans from the private `first_free` cursor rather than from zero. Since every
         /// slot below that is occupied, the result is identical to a full scan,
         /// but building a tree no longer re-walks the whole arena per node.
         pub fn next_id(&self) -> usize {
@@ -733,14 +733,15 @@ mod simple_rooted_tree {
         W: EdgeWeight,
         Z: NodeWeight,
     {
-        fn contracted_tree_nodes(
+        fn contracted_tree_nodes_from_root(
             &self,
+            new_tree_root_id: TreeNodeID<Self>,
             leaf_ids: &[TreeNodeID<Self>],
         ) -> impl Iterator<Item = Self::Node> {
-            let new_tree_root_id = self.get_lca_id(leaf_ids);
             let node_postord_iter = self.postord_nodes(new_tree_root_id);
             let mut node_map: Vec<Option<Self::Node>> = vec![None; self.nodes.len()];
-            node_map[new_tree_root_id] = Some(self.get_lca(leaf_ids).clone());
+
+            node_map[new_tree_root_id] = Some(self.get_node(new_tree_root_id).unwrap().clone());
             let mut leaf_id_set = vec![false; self.nodes.len()];
             for id in leaf_ids {
                 leaf_id_set[*id] = true;
@@ -862,9 +863,13 @@ mod simple_rooted_tree {
             node_map.into_iter().flatten()
         }
 
-        fn contract_tree(&self, leaf_ids: &[TreeNodeID<Self>]) -> Result<Self, ()> {
-            let new_tree_root_id = self.get_lca_id(leaf_ids);
-            let new_nodes = self.contracted_tree_nodes(leaf_ids);
+        fn contract_tree_with_oracle(
+            &self,
+            leaf_ids: &[TreeNodeID<Self>],
+            oracle: &LcaOracle<'_, Self>,
+        ) -> Result<Self, ()> {
+            let new_tree_root_id = oracle.get_lca_id(leaf_ids);
+            let new_nodes = self.contracted_tree_nodes_from_root(new_tree_root_id, leaf_ids);
             let mut new_tree = SimpleRootedTree {
                 root: new_tree_root_id,
                 nodes: vec![None; self.nodes.len()],
