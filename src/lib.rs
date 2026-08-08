@@ -180,6 +180,39 @@
 //! cargo run --example pairwise-distances
 //! ```
 //!
+//! # Benchmarks
+//!
+//! Benchmarks use [criterion](https://github.com/bheisler/criterion.rs) and are split into four targets by what they measure:
+//!
+//! | Target | Covers |
+//! | --- | --- |
+//! | `lca` | `LcaOracle` construction, O(1) queries, and the uncached walk. |
+//! | `traversal` | Post-order traversal, bipartitions, median node. |
+//! | `construction` | Yule simulation, SPR, tree contraction. |
+//! | `distances` | RF, cluster matching, cluster affinity, cophenetic distance. |
+//!
+//! ```sh
+//! cargo bench                      # everything
+//! cargo bench --bench lca          # one target
+//! cargo bench -- lca_oracle_query  # one group, by regex
+//! cargo bench --features parallel  # adds the parallel cophenetic group
+//! ```
+//!
+//! Each sweep reports **throughput** in elements (taxa) per second alongside wall time. That is the number to read: a linear routine holds its throughput flat across the sweep, while a quadratic one loses roughly a factor of four per fourfold jump in taxa. Reading the raw times alone hides which is which.
+//!
+//! Some groups come in pairs that are only meaningful read together. `contract_tree` builds a throwaway [`LcaOracle`](crate::iter::lca::LcaOracle) per call, while `contract_tree_with_oracle` reuses one the caller hoisted; the gap between them at a given taxa count is what the O(n) index build costs, and it is the difference between the two that tells you whether a change touched the build or the contraction.
+//!
+//! Criterion compares every run against the previous one automatically. To pin an explicit reference point:
+//!
+//! ```sh
+//! git checkout main && cargo bench -- --save-baseline main
+//! git checkout my-branch && cargo bench -- --baseline main
+//! ```
+//!
+//! An HTML report with plots lands in `target/criterion/report/index.html`.
+//!
+//! The quadratic groups (`distances`, and `bipartitions` in `traversal`) run at criterion's minimum sample count so they finish in minutes; their confidence intervals are wide by design. Read them for scaling behaviour, not for single-digit-percent regressions.
+//!
 //! # WebAssembly
 //!
 //! `phylo` builds for `wasm32` targets out of the box, making it suitable for in-browser phylogenetics — use your usual wasm toolchain (e.g. `wasm-pack`, or `cargo build --target wasm32-unknown-unknown`).
