@@ -23,6 +23,25 @@ jobs:
       - run: cargo check --no-default-features
       - run: cargo test
       - run: cargo bench --no-run
+  readme:
+    name: Check README matches lib.rs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # Read-only: --check exits non-zero on drift and prints a diff. It never
+      # writes, so nothing here can push to main. Regenerate locally with
+      # `cargo +nightly-2026-08-05 rdme --heading-base-level 1`.
+      #
+      # Nightly is required because cargo-rdme resolves intra-doc links via
+      # rustdoc's unstable JSON output. Pinned to a known-good date so a
+      # nightly regression cannot fail an unrelated PR.
+      - run: rustup toolchain install nightly-2026-08-05 --profile minimal
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: cargo-rdme
+      - run: cargo install --locked cargo-rdme
+      - run: cargo +nightly-2026-08-05 rdme --check --heading-base-level 1
+
   msrv:
     name: Check MSRV
     runs-on: ubuntu-latest

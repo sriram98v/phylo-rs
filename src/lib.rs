@@ -2,36 +2,27 @@
 
 //! A fast, extensible, WebAssembly-ready phylogenetics library for Rust.
 //!
-//! `phylo` provides memory-efficient data structures and algorithms for
-//! phylogenetic analysis and inference — from tree manipulation (SPR, NNI,
-//! rerooting) to tree statistics (phylogenetic diversity, RF distance, cophenetic
-//! distance) to maximum-likelihood modelling (GTR+I+G substitution models,
-//! Felsenstein pruning, ancestral reconstruction). It leans on Rust's memory
-//! safety, speed, and native WebAssembly support to stay both fast and portable.
+//! `phylo` provides memory-efficient data structures and algorithms for phylogenetic analysis and inference — from tree manipulation (SPR, NNI, rerooting) to tree statistics (phylogenetic diversity, RF distance, cophenetic distance) to maximum-likelihood modelling (GTR+I+G substitution models, Felsenstein pruning, ancestral reconstruction). It leans on Rust's memory safety, speed, and native WebAssembly support to stay both fast and portable.
 //!
-//! Tree traversals and operations are exposed as **derivable traits**, so you get
-//! DFS/BFS/pre-/post-order, Euler tours, LCA queries, and distance metrics for
-//! free on your own types — and a ready-made [`PhyloTree`](crate::tree::PhyloTree)
-//! when you don't want to implement one.
+//! Tree traversals and operations are exposed as **derivable traits**, so you get DFS/BFS/pre-/post-order, Euler tours, LCA queries, and distance metrics for free on your own types — and a ready-made [`PhyloTree`](crate::tree::PhyloTree) when you don't want to implement one.
 //!
 //! # Highlights
 //!
-//! - **Trait-first design** — compose narrow traits (`RootedTree`,
-//!   `RootedMetaTree`, `EulerWalk`, `DFS`, `Clusters`, …) onto any type, or use
-//!   the batteries-included [`PhyloTree`](crate::tree::PhyloTree).
-//! - **Arena-allocated trees** — cache-friendly `Vec`-backed storage with `usize`
-//!   node IDs.
-//! - **Constant-time LCA** — an [`LcaOracle`](crate::iter::lca::LcaOracle) borrows
-//!   the tree immutably and answers LCA queries in O(1) via an Euler tour + RMQ.
-//! - **Tree comparison** — Robinson-Foulds, weighted RF, cluster affinity, and
-//!   cophenetic distance, with distance-matrix builders.
-//! - **Maximum-likelihood modelling** — GTR+I+G substitution models (JC69 through
-//!   GTR), Felsenstein-pruning log-likelihood, and marginal/joint ancestral
-//!   sequence reconstruction.
+//! - **Trait-first design** — compose narrow traits (`RootedTree`, `RootedMetaTree`, `EulerWalk`, `DFS`, `Clusters`, …) onto any type, or use the batteries-included [`PhyloTree`](crate::tree::PhyloTree).
+//! - **Arena-allocated trees** — cache-friendly `Vec`-backed storage with `usize` node IDs.
+//! - **Constant-time LCA** — an [`LcaOracle`](crate::iter::lca::LcaOracle) borrows the tree immutably and answers LCA queries in O(1) via an Euler tour + RMQ.
+//! - **Tree comparison** — Robinson-Foulds, weighted RF, cluster affinity, and cophenetic distance, with distance-matrix builders.
+//! - **Maximum-likelihood modelling** — GTR+I+G substitution models (JC69 through GTR), Felsenstein-pruning log-likelihood, and marginal/joint ancestral sequence reconstruction.
 //! - **I/O** — Newick and Nexus parsing and serialization.
 //! - **Simulation** — random trees (Yule, uniform).
-//! - **Optional parallelism** — opt into `rayon`-backed computation with the
-//!   `parallel` feature.
+//! - **Optional parallelism** — opt into `rayon`-backed computation with the `parallel` feature.
+//! - **Fallible by default** — operations that a caller can misuse return [`Result`] with a typed [`error::TreeError`]; the library does not panic on bad input.
+//!
+//! # Installation
+//!
+//! ```sh
+//! cargo add phylo
+//! ```
 //!
 //! # Feature flags
 //!
@@ -90,9 +81,7 @@
 //!
 //! ## Constant-time LCA
 //!
-//! Build an [`LcaOracle`](crate::iter::lca::LcaOracle) with `tree.lca()`; it
-//! borrows the tree immutably (so staleness is a compile error, not a runtime bug)
-//! and answers queries in O(1):
+//! Build an [`LcaOracle`](crate::iter::lca::LcaOracle) with `tree.lca()`; it borrows the tree immutably (so staleness is a compile error, not a runtime bug) and answers queries in O(1):
 //!
 //! ```
 //! use phylo::prelude::*;
@@ -129,12 +118,7 @@
 //!
 //! ## Likelihood and ancestral reconstruction
 //!
-//! Score an alignment against a tree under a substitution model, or reconstruct
-//! ancestral sequences at the internal nodes. The log-likelihood path
-//! ([`TreeLikelihood`](crate::tree::likelihood::TreeLikelihood)) runs Felsenstein's
-//! pruning algorithm alone — no reconstruction — while marginal/joint ASR
-//! ([`MarginalAsr`](crate::tree::asr::MarginalAsr) /
-//! [`JointAsr`](crate::tree::asr::JointAsr)) build on the same pruning core:
+//! Score an alignment against a tree under a substitution model, or reconstruct ancestral sequences at the internal nodes. The log-likelihood path ([`TreeLikelihood`](crate::tree::likelihood::TreeLikelihood)) runs Felsenstein's pruning algorithm alone — no reconstruction — while marginal/joint ASR ([`MarginalAsr`](crate::tree::asr::MarginalAsr) / [`JointAsr`](crate::tree::asr::JointAsr)) build on the same pruning core:
 //!
 //! ```
 //! use phylo::prelude::*;
@@ -174,24 +158,35 @@
 //! | [`models`] | GTR+I+G substitution models and their named special cases. |
 //! | [`tree::likelihood`] | Felsenstein-pruning log-likelihood. |
 //! | [`tree::asr`] | Marginal and joint ancestral sequence reconstruction. |
+//! | [`error`] | [`error::TreeError`] and the parsing/model error types. |
 //!
 //! # Examples
 //!
-//! Runnable analyses live in the `examples/` directory of the repository (e.g.
-//! `cargo run --example phylogenetic-diversity`, `cargo run --example
-//! pairwise-distances`). See the repository README for how to visualize their
-//! output.
+//! Runnable analyses live in the [`examples/`](https://github.com/sriram98v/phylo-rs/tree/main/examples) directory. To visualize their output, install the Python requirements first:
+//!
+//! ```sh
+//! pip install -r examples/visualization/requirements.txt
+//! ```
+//!
+//! **Quantifying phylogenetic diversity** — the Faith index across a set of trees. Run it, then plot with `examples/visualization/pd.py`:
+//!
+//! ```sh
+//! cargo run --example phylogenetic-diversity
+//! ```
+//!
+//! **Visualizing tree space** — all pairwise distances across a set of trees. Run it, then plot with `examples/visualization/tree-space.py`:
+//!
+//! ```sh
+//! cargo run --example pairwise-distances
+//! ```
 //!
 //! # WebAssembly
 //!
-//! `phylo` builds for `wasm32` targets out of the box, making it suitable for
-//! in-browser phylogenetics — use your usual wasm toolchain (e.g. `wasm-pack`, or
-//! `cargo build --target wasm32-unknown-unknown`).
+//! `phylo` builds for `wasm32` targets out of the box, making it suitable for in-browser phylogenetics — use your usual wasm toolchain (e.g. `wasm-pack`, or `cargo build --target wasm32-unknown-unknown`).
 //!
 //! # Citation
 //!
-//! If you use `phylo` in your work, please cite
-//! [this paper](https://pmc.ncbi.nlm.nih.gov/articles/PMC12309125/):
+//! If you use `phylo` in your work, please cite [this paper](https://pmc.ncbi.nlm.nih.gov/articles/PMC12309125/):
 //!
 //! ```bibtex
 //! @article{vijendran2025phylo,
@@ -206,7 +201,7 @@
 //!
 //! # License
 //!
-//! Licensed under the MIT License.
+//! Licensed under the [MIT License](https://github.com/sriram98v/phylo-rs/blob/main/LICENSE).
 
 /// Module with multiple sequence alignments and column compression.
 pub mod alignment;
